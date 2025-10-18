@@ -12,7 +12,7 @@
         import { Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // Variáveis globais de dados
-        let salasData = []; 
+        let tutoresData = []; // NOVA VARIÁVEL
         let alunosData = [];
         let fichaData = {}; // Variável para armazenar os dados da ficha
         
@@ -27,7 +27,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadSalas();
+            loadTutores(); // ALTERADO: Chamando loadTutores
         });
 
         // Funções Auxiliares
@@ -37,45 +37,49 @@
             return `${d}/${m}/${y}`;
         }
 
-        // --- MÓDULO DE FILTROS ---
+        // --- MÓDULO DE FILTROS (ALTERADO) ---
         
-        window.loadSalas = async function() {
-            const selectSala = document.getElementById('filter-sala');
-            selectSala.innerHTML = '<option value="">Carregando Salas...</option>';
+        window.loadTutores = async function() {
+            const selectTutor = document.getElementById('filter-tutor'); // ALTERADO ID
+            selectTutor.innerHTML = '<option value="">Carregando Tutores...</option>';
             try {
-                salasData = await handleFetchResponse('/api/salas', 'Salas');
-                selectSala.innerHTML = '<option value="">SELECIONE A SALA</option>';
-                salasData.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(s => { 
-                    selectSala.innerHTML += `<option value="${s.id}">${s.nome}</option>`; 
+                // Endpoint NECESSÁRIO NO FLASK: /api/tutores
+                tutoresData = await handleFetchResponse('/api/tutores', 'Tutores');
+                selectTutor.innerHTML = '<option value="">SELECIONE O(A) TUTOR(A)</option>';
+                // Assumindo que tutoresData tem { id: 1, nome: "Tutor A" }
+                tutoresData.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(t => { 
+                    selectTutor.innerHTML += `<option value="${t.id}">${t.nome}</option>`; 
                 });
             } catch (e) { 
-                selectSala.innerHTML = '<option value="">ERRO AO CARREGAR SALAS</option>';
+                console.error("Erro ao carregar tutores:", e);
+                selectTutor.innerHTML = '<option value="">ERRO AO CARREGAR TUTORES</option>';
             }
-            loadAlunos();
         }
 
-        window.loadAlunos = async function() {
-            const salaId = document.getElementById('filter-sala').value;
+        window.loadAlunosPorTutor = async function() { // NOVA FUNÇÃO
+            const tutorId = document.getElementById('filter-tutor').value; // ALTERADO ID
             const selectAluno = document.getElementById('filter-aluno');
             
-            selectAluno.innerHTML = '<option value="">Selecione a Sala...</option>';
+            selectAluno.innerHTML = '<option value="">Selecione o(a) Tutor(a)...</option>';
             selectAluno.disabled = true;
 
-            if (salaId) {
+            if (tutorId) {
                 try {
-                    alunosData = await handleFetchResponse(`/api/alunos_por_sala/${salaId}`, 'Alunos');
-                    selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
+                    // Endpoint NECESSÁRIO NO FLASK: /api/alunos_por_tutor/<tutorId>
+                    alunosData = await handleFetchResponse(`/api/alunos_por_tutor/${tutorId}`, 'Tutorados');
+                    selectAluno.innerHTML = '<option value="">SELECIONE O TUTORADO</option>';
                     alunosData.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(a => { 
                         selectAluno.innerHTML += `<option value="${a.id}">${a.nome}</option>`; 
                     });
                     selectAluno.disabled = false;
                 } catch (error) { 
-                    selectAluno.innerHTML = '<option value="">ERRO AO CARREGAR ALUNOS</option>';
+                    console.error("Erro ao carregar alunos:", error);
+                    selectAluno.innerHTML = '<option value="">ERRO AO CARREGAR TUTORADOS</option>';
                 }
             } else {
-                 selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
+                 selectAluno.innerHTML = '<option value="">SELECIONE O TUTORADO</option>';
             }
-            // Ocultar a ficha ao mudar de sala
+            // Ocultar a ficha ao mudar de tutor
             document.getElementById('ficha-details-container').classList.add('hidden');
         }
         
@@ -270,26 +274,19 @@
         <main class="w-full max-w-6xl flex-grow space-y-8">
             <form id="ficha-form" onsubmit="salvarFichaCompleta(event)" class="bg-dark-secondary p-6 rounded-xl shadow-2xl space-y-6">
 
-                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400">1. Seleção do Aluno</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400">1. Seleção do Tutor e Aluno</h3> <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     
                     <div>
-                        <label for="filter-sala" class="block text-sm font-medium mb-1">Sala *:</label>
-                        <select id="filter-sala" class="form-input w-full p-2 bg-gray-700 rounded" onchange="loadAlunos()" required>
-                            <option value="">SELECIONE A SALA</option>
-                        </select>
+                        <label for="filter-tutor" class="block text-sm font-medium mb-1">Tutor *:</label> <select id="filter-tutor" class="form-input w-full p-2 bg-gray-700 rounded" onchange="loadAlunosPorTutor()" required> <option value="">SELECIONE O(A) TUTOR(A)</option> </select>
                     </div>
                     
                     <div>
-                        <label for="filter-aluno" class="block text-sm font-medium mb-1">Aluno *:</label>
-                        <select id="filter-aluno" class="form-input w-full p-2 bg-gray-700 rounded" onchange="loadAlunoData()" disabled required>
-                            <option value="">SELECIONE O ALUNO</option>
-                        </select>
+                        <label for="filter-aluno" class="block text-sm font-medium mb-1">Tutorado *:</label> <select id="filter-aluno" class="form-input w-full p-2 bg-gray-700 rounded" onchange="loadAlunoData()" disabled required>
+                            <option value="">SELECIONE O TUTORADO</option> </select>
                     </div>
 
                     <div>
-                        <label for="info-sala" class="block text-sm font-medium mb-1">Sala / Série:</label>
-                        <div id="info-sala" class="bg-gray-700 text-gray-300 p-2 rounded-lg text-sm">N/A</div>
+                        <label for="info-sala" class="block text-sm font-medium mb-1">Sala / Série do Aluno:</label> <div id="info-sala" class="bg-gray-700 text-gray-300 p-2 rounded-lg text-sm">N/A</div>
                     </div>
                 </div>
 
