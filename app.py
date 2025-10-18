@@ -25,12 +25,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__, template_folder='templates')
 
 
-# =========================================================
-# LOG DE REQUISIÇÕES (para debug)
-# =========================================================
-@app.before_request
-def log_request():
-    print(f"[LOG] Rota acessada: {request.path}")
+    print("[DEBUG] Flask app initialized and attempting to define routes.")
 
 # =========================================================
 # FUNÇÕES AUXILIARES
@@ -82,12 +77,9 @@ def calcular_dias_resposta(dt_abertura, dt_fechamento_str):
 
 DEFAULT_AUTOTEXT = "ATENDIMENTO NÃO SOLICITADO PELO RESPONSÁVEL DA OCORRÊNCIA"
 
-# ROTA DE HEALTH CHECK
-# =========================================================
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Rota simples para o ambiente de hospedagem verificar a saúde da aplicação."""
-    return jsonify({"status": "ok"}), 200
+
+
+ print("[DEBUG] Flask app initialized and attempting to define routes.")
     
 # =========================================================
 # ROTAS DE PÁGINA PRINCIPAIS (Renderiza templates)
@@ -1820,6 +1812,7 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
