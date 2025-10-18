@@ -1,8 +1,8 @@
 import os
 import logging
 from dotenv import load_dotenv
-# Importações consolidadas, incluindo send_file necessário para o PDF
-from flask import Flask, render_template, request, jsonify, send_file 
+# IMPORTS CONSOLIDADOS (INCLUINDO PDF)
+from flask import Flask, render_template, request, jsonify, send_file
 from supabase import create_client, Client
 import json
 from datetime import datetime
@@ -84,6 +84,14 @@ def calcular_dias_resposta(dt_abertura, dt_fechamento_str):
         return None
 
 DEFAULT_AUTOTEXT = "ATENDIMENTO NÃO SOLICITADO PELO RESPONSÁVEL DA OCORRÊNCIA"
+
+def safe_pdf_text(text):
+    """Garante que o texto seja compatível com a codificação Latin-1/Cp1252 do FPDF."""
+    if not text:
+        return ''
+    # Força a codificação para Latin-1 (comum em FPDF) e decodifica, 
+    # substituindo caracteres incompatíveis para evitar o erro \ufffd.
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
 
 
 # =========================================================
@@ -776,7 +784,6 @@ def api_salvar_atendimento():
     ocorrencia_id = data.get("id") 
     
     if not ocorrencia_id:
-        # Se o frontend não incluiu o ID da ocorrência, tenta extraí-lo do body
         return jsonify({"error": "Dados obrigatórios (ID da ocorrência) ausentes."}), 400
         
     try:
@@ -817,8 +824,9 @@ def registrar_atendimento(ocorrencia_id):
         }).eq("numero", ocorrencia_id).execute()
 
         # Reavalia status
+        # CORREÇÃO: Removida a coluna 'solicitado_professor' que não existe mais no esquema.
         resp = supabase.table('ocorrencias').select(
-            "solicitado_professor, solicitado_tutor, solicitado_coordenacao, solicitado_gestao, "
+            "solicitado_tutor, solicitado_coordenacao, solicitado_gestao, "
             "atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao"
         ).eq("numero", ocorrencia_id).single().execute()
 
@@ -827,7 +835,8 @@ def registrar_atendimento(ocorrencia_id):
 
         occ = resp.data
 
-        sp = _to_bool(occ.get('solicitado_professor'))
+        # Não usamos 'solicitado_professor' na lógica de status final.
+        # sp = _to_bool(occ.get('solicitado_professor')) # Removido
         st = _to_bool(occ.get('solicitado_tutor'))
         sc = _to_bool(occ.get('solicitado_coordenacao'))
         sg = _to_bool(occ.get('solicitado_gestao'))
@@ -837,13 +846,14 @@ def registrar_atendimento(ocorrencia_id):
         at_coord = (occ.get('atendimento_coordenacao') or "").strip()
         at_gest = (occ.get('atendimento_gestao') or "").strip()
 
-        pendente_prof = sp and (at_prof == "" or at_prof == DEFAULT_AUTOTEXT)
+        # pendente_prof = sp and (at_prof == "" or at_prof == DEFAULT_AUTOTEXT) # Removido
         pendente_tutor = st and (at_tutor == "" or at_tutor == DEFAULT_AUTOTEXT)
         pendente_coord = sc and (at_coord == "" or at_coord == DEFAULT_AUTOTEXT)
         pendente_gestao = sg and (at_gest == "" or at_gest == DEFAULT_AUTOTEXT)
 
         novo_status = "Aberta"
-        if not (pendente_prof or pendente_tutor or pendente_coord or pendente_gestao):
+        # Alterado: Não inclui pendente_prof no cálculo final.
+        if not (pendente_tutor or pendente_coord or pendente_gestao):
             novo_status = "Finalizada"
 
         if novo_status == "Finalizada":
@@ -1756,7 +1766,7 @@ def gerar_pdf_ocorrencias():
 
     try:
         # Buscar ocorrências no Supabase
-        # CORREÇÃO 1: 'tutor' alterado para 'tutor_nome'
+        # CORREÇÃO: 'tutor' alterado para 'tutor_nome'
         resp = supabase.table('ocorrencias').select(
             "numero, data_hora, descricao, status, aluno_nome, sala_id, tutor_nome, atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao"
         ).in_('numero', numeros).order('data_hora', desc=True).execute()
@@ -1769,47 +1779,64 @@ def gerar_pdf_ocorrencias():
         pdf = FPDF()
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
+        
         pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "RELATÓRIO DE REGISTRO DE OCORRÊNCIAS", ln=True, align='C')
+        # CORREÇÃO: Usando safe_pdf_text para cabeçalhos fixos
+        pdf.cell(0, 10, safe_pdf_text("RELATÓRIO DE REGISTRO DE OCORRÊNCIAS"), ln=True, align='C')
+        
         pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 7, "E.E. PEI PROFESSOR IRENE DIAS RIBEIRO", ln=True, align='C')
+        pdf.cell(0, 7, safe_pdf_text("E.E. PEI PROFESSOR IRENE DIAS RIBEIRO"), ln=True, align='C')
         pdf.ln(5)
 
         # Cabeçalho do aluno (usando primeira ocorrência)
         aluno_nome = ocorrencias[0].get("aluno_nome", "Aluno Desconhecido")
         sala = ocorrencias[0].get("sala_id", "Indefinida")
-        # CORREÇÃO 2: 'tutor' alterado para 'tutor_nome'
+        # CORREÇÃO: 'tutor' alterado para 'tutor_nome'
         tutor = ocorrencias[0].get("tutor_nome", "Indefinido") 
-        pdf.cell(0, 7, f"Aluno: {aluno_nome}    Sala: {sala}", ln=True)
-        pdf.cell(0, 7, f"Tutor: {tutor}", ln=True)
+        
+        # CORREÇÃO: Usando safe_pdf_text
+        pdf.cell(0, 7, safe_pdf_text(f"Aluno: {aluno_nome}    Sala: {sala}"), ln=True)
+        pdf.cell(0, 7, safe_pdf_text(f"Tutor: {tutor}"), ln=True)
         pdf.ln(5)
 
         for o in ocorrencias:
             pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 7, f"Ocorrência nº: {o.get('numero')}", ln=True)
+            pdf.cell(0, 7, safe_pdf_text(f"Ocorrência nº: {o.get('numero')}"), ln=True)
+            
             pdf.set_font("Arial", "", 12)
             data_hora = o.get('data_hora', '')
             if data_hora:
-                data, hora = str(data_hora).split(' ')
+                # O Supabase retorna a data no formato ISO com 'T' no meio, se não for formatado antes
+                try:
+                    dt = datetime.fromisoformat(data_hora.replace('Z', '+00:00'))
+                    data = dt.strftime("%d/%m/%Y")
+                    hora = dt.strftime("%H:%M:%S")
+                except:
+                     data, hora = 'N/A', 'N/A'
             else:
                 data, hora = '', ''
-            pdf.cell(0, 6, f"Data: {data}    Hora: {hora}", ln=True)
-            professor = o.get('atendimento_professor', '---')
-            pdf.cell(0, 6, f"Professor: {professor}", ln=True)
-            pdf.multi_cell(0, 6, f"Descrição:\n{o.get('descricao', '')}")
             
-            pdf.cell(0, 6, f"Atendimento Professor:\n{o.get('atendimento_professor', '')}", ln=True)
-            pdf.cell(0, 6, f"Atendimento Tutor (Se solicitado):\n{o.get('atendimento_tutor', '')}", ln=True)
-            pdf.cell(0, 6, f"Atendimento Coordenação (Se solicitado):\n{o.get('atendimento_coordenacao', '')}", ln=True)
-            pdf.cell(0, 6, f"Atendimento Gestão (Se solicitado):\n{o.get('atendimento_gestao', '')}", ln=True)
+            # CORREÇÃO: Usando safe_pdf_text
+            professor = o.get('atendimento_professor', '---')
+            pdf.cell(0, 6, safe_pdf_text(f"Data: {data}    Hora: {hora}"), ln=True)
+            pdf.cell(0, 6, safe_pdf_text(f"Professor: {professor}"), ln=True)
+            
+            # CORREÇÃO: Usando safe_pdf_text em multi_cell
+            pdf.multi_cell(0, 6, safe_pdf_text(f"Descrição:\n{o.get('descricao', '')}"))
+            
+            # CORREÇÃO: Usando safe_pdf_text
+            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Professor:\n{o.get('atendimento_professor', '')}"), ln=True)
+            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Tutor (Se solicitado):\n{o.get('atendimento_tutor', '')}"), ln=True)
+            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Coordenação (Se solicitado):\n{o.get('atendimento_coordenacao', '')}"), ln=True)
+            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Gestão (Se solicitado):\n{o.get('atendimento_gestao', '')}"), ln=True)
             pdf.ln(3)
             pdf.line(10, pdf.get_y(), 200, pdf.get_y())  # linha separadora
             pdf.ln(3)
 
         # Assinatura no final
         pdf.ln(10)
-        pdf.cell(0, 10, "Assinatura Responsável: _______________________________", ln=True)
-        pdf.cell(0, 10, "Data: ___ / ___ / ______", ln=True)
+        pdf.cell(0, 10, safe_pdf_text("Assinatura Responsável: _______________________________"), ln=True)
+        pdf.cell(0, 10, safe_pdf_text("Data: ___ / ___ / ______"), ln=True)
 
         pdf_buffer = io.BytesIO()
         pdf.output(pdf_buffer)
