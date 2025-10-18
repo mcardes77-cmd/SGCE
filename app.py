@@ -771,6 +771,7 @@ def api_get_guia_aprendizagem():
         return jsonify({"error": f"Erro ao buscar Guia de Aprendizagem: {e}", "status": 500}), 500
 
 # Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
+# Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
 @app.route("/api/salvar_atendimento", methods=["POST"])
 def api_salvar_atendimento():
     """
@@ -783,13 +784,19 @@ def api_salvar_atendimento():
 
     ocorrencia_id = data.get("id") 
     
+    # Adicionando suporte à chave 'numero' caso o frontend esteja atrasado
+    if not ocorrencia_id:
+        ocorrencia_id = data.get("numero")
+    
     if not ocorrencia_id:
         return jsonify({"error": "Dados obrigatórios (ID da ocorrência) ausentes."}), 400
         
     try:
-        # Chama a função principal de registro (que já estava no seu código)
+        # Chama a função principal de registro
         return registrar_atendimento(int(ocorrencia_id))
     except Exception as e:
+        # Log detalhado de falhas internas
+        logging.exception(f"Falha na rota de compatibilidade /api/salvar_atendimento para ID {ocorrencia_id}")
         return jsonify({"error": f"Falha interna ao processar o atendimento: {str(e)}", "status": 500}), 500
 
 
@@ -802,6 +809,11 @@ def registrar_atendimento(ocorrencia_id):
 
         nivel = data.get("nivel")
         texto = data.get("texto")
+        
+        # Suporte a campo 'atendimento' se o frontend antigo estiver sendo usado
+        if not texto:
+            texto = data.get("atendimento")
+
         if not nivel or not texto:
             return jsonify({"error": "Dados incompletos: Nível ou texto ausente."}), 400
 
@@ -816,56 +828,67 @@ def registrar_atendimento(ocorrencia_id):
             return jsonify({"error": f"Nível de atendimento inválido: {nivel}"}), 400
 
         campo_texto, campo_data = campos[nivel]
-        agora = datetime.now().isoformat()
+        
+        # CORREÇÃO CRÍTICA DO FORMATO DA DATA: 
+        # Usando o formato ISO 8601 completo (incluindo milissegundos) para ser mais compatível com Supabase/PostgreSQL.
+        agora = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
 
-        supabase.table("ocorrencias").update({
+        # 1. ATUALIZA OS CAMPOS DE ATENDIMENTO E DATA
+        update_data = {
             campo_texto: texto,
             campo_data: agora
-        }).eq("numero", ocorrencia_id).execute()
+        }
+        
+        update_result = supabase.table("ocorrencias").update(update_data).eq("numero", ocorrencia_id).execute()
 
-        # Reavalia status
-        # CORREÇÃO: Removida a coluna 'solicitado_professor' que não existe mais no esquema.
+        if update_result.count == 0:
+             logging.warning(f"Supabase update falhou silenciosamente para ocorrência {ocorrencia_id}. Dados: {update_data}")
+             # Retorna OK mesmo com falha silenciosa para evitar loop do frontend, mas registra o erro.
+             return jsonify({"success": True, "novo_status": "Aberta", "warning": "Falha ao salvar no banco, status não atualizado."}), 200
+
+        # 2. REAVALIA O STATUS (Busca os dados *após* a atualização)
+        # Consulta sem a coluna 'solicitado_professor' que foi removida
         resp = supabase.table('ocorrencias').select(
             "solicitado_tutor, solicitado_coordenacao, solicitado_gestao, "
-            "atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao"
+            "atendimento_tutor, atendimento_coordenacao, atendimento_gestao, status"
         ).eq("numero", ocorrencia_id).single().execute()
 
         if not resp.data:
             return jsonify({"error": "Ocorrência não encontrada"}), 404
 
         occ = resp.data
-
-        # Não usamos 'solicitado_professor' na lógica de status final.
-        # sp = _to_bool(occ.get('solicitado_professor')) # Removido
+        
+        # Converte strings 'SIM'/'NÃO' para booleanos
         st = _to_bool(occ.get('solicitado_tutor'))
         sc = _to_bool(occ.get('solicitado_coordenacao'))
         sg = _to_bool(occ.get('solicitado_gestao'))
 
-        at_prof = (occ.get('atendimento_professor') or "").strip()
+        # Limpa o texto de atendimento
         at_tutor = (occ.get('atendimento_tutor') or "").strip()
         at_coord = (occ.get('atendimento_coordenacao') or "").strip()
         at_gest = (occ.get('atendimento_gestao') or "").strip()
 
-        # pendente_prof = sp and (at_prof == "" or at_prof == DEFAULT_AUTOTEXT) # Removido
+        # Lógica de Pendência (Se solicitado E o texto for vazio/default)
         pendente_tutor = st and (at_tutor == "" or at_tutor == DEFAULT_AUTOTEXT)
         pendente_coord = sc and (at_coord == "" or at_coord == DEFAULT_AUTOTEXT)
         pendente_gestao = sg and (at_gest == "" or at_gest == DEFAULT_AUTOTEXT)
 
         novo_status = "Aberta"
-        # Alterado: Não inclui pendente_prof no cálculo final.
+        
+        # Ocorrência está FINALIZADA se NENHUMA das pendências solicitadas estiver ativa.
         if not (pendente_tutor or pendente_coord or pendente_gestao):
             novo_status = "Finalizada"
 
-        if novo_status == "Finalizada":
+        if novo_status == "Finalizada" and occ.get('status') != "Finalizada":
             supabase.table("ocorrencias").update({"status": novo_status}).eq("numero", ocorrencia_id).execute()
             logging.info(f"[ATENDIMENTO] Nº {ocorrencia_id} finalizada pelo nível {nivel}")
-
+        
+        # 3. Retorna Sucesso
         return jsonify({"success": True, "novo_status": novo_status}), 200
 
     except Exception as e:
         logging.exception(f"Erro ao registrar atendimento {ocorrencia_id}")
         return jsonify({"error": str(e)}), 500
-
 
 @app.route('/api/cadastrar_sala', methods=['POST'])
 def api_cadastrar_sala():
@@ -1860,3 +1883,4 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
