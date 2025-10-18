@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Relatório Mensal de Frequência</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .cell-P { background: #10B981; color: white; font-weight: 700; border-radius: 6px; padding: 6px; text-align: center; }
+  .cell-F { background: #DC2626; color: white; font-weight: 700; border-radius: 6px; padding: 6px; text-align: center; }
+  .cell-PA { background: #F59E0B; color: #111; font-weight: 700; border-radius: 6px; padding: 6px; text-align: center; cursor: pointer; }
+  .cell-empty { background: #374151; color: #9CA3AF; border-radius: 6px; padding: 6px; text-align: center; }
+  .modal-bg { background: rgba(0,0,0,0.6); }
+</style>
+</head>
+
+<body class="bg-dark-primary text-text-light font-sans min-h-screen">
+
+<!-- Cabeçalho Padronizado -->
+<header class="text-center mb-8 mt-4">
+  <h1 class="text-2xl text-text-light mt-2 font-light border-b border-gray-700 pb-2 inline-block">
+    SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR
+  </h1><br>
+  <h2 class="text-lg text-text-light mt-2 font-light border-b border-gray-700 pb-2 inline-block">
+    GESTÃO DE RELATÓRIOS - RELATÓRIO DE FREQUÊNCIA MENSAL
+  </h2>
+  <button onclick="window.location.href='/gestao_relatorio'"
+    class="mt-4 px-4 py-2 text-sm font-medium rounded-lg text-gray-300 border border-gray-600 hover:bg-gray-700 transition duration-150 flex items-center mx-auto">
+    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 6h16M4 12h16M4 18h7"></path>
+    </svg>
+    Voltar ao Menu de Relatórios
+  </button>
+</header>
+
+<!-- Filtros -->
+<main class="max-w-6xl mx-auto p-6 bg-dark-secondary rounded-lg shadow-lg">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div>
+      <label class="block text-sm text-gray-300 mb-1">Sala:</label>
+      <select id="filter-sala" class="w-full p-3 rounded bg-white text-black"></select>
+    </div>
+    <div>
+      <label class="block text-sm text-gray-300 mb-1">Mês:</label>
+      <input id="filter-mes" type="month" class="w-full p-3 rounded bg-white text-black"/>
+    </div>
+    <div class="flex items-end">
+      <button id="btn-gerar" class="w-full bg-accent text-white font-bold py-3 px-4 rounded hover:brightness-110">
+        Gerar Relatório
+      </button>
+    </div>
+  </div>
+
+  <!-- Container do relatório -->
+  <div id="report-container" class="hidden bg-dark-primary p-5 rounded-lg">
+    <div class="flex justify-between items-center mb-3 flex-wrap gap-3">
+      <div>
+        <h3 id="report-title" class="text-lg font-bold text-accent">Relatório</h3>
+        <p id="report-sub" class="text-sm text-gray-300"></p>
+      </div>
+      <div class="flex gap-3">
+        <button id="btn-download-pdf" class="bg-accent text-white font-bold py-2 px-3 rounded hidden hover:bg-emerald-700">Gerar PDF</button>
+        <button id="btn-export-csv" class="bg-gray-700 text-white font-bold py-2 px-3 rounded hover:bg-gray-600">Exportar CSV</button>
+      </div>
+    </div>
+    <div id="table-wrap" class="overflow-x-auto"></div>
+    <p class="mt-3 text-xs text-gray-400">
+      Legenda: 
+      <span class="cell-P px-2">P</span> Presença &nbsp;
+      <span class="cell-F px-2">F</span> Falta &nbsp;
+      <span class="cell-PA px-2">PA/PS/PAS</span> Atraso/Saída
+    </p>
+  </div>
+</main>
+
+<!-- Modal -->
+<div id="modal" class="hidden fixed inset-0 z-50 items-center justify-center">
+  <div class="modal-bg absolute inset-0"></div>
+  <div class="bg-dark-secondary max-w-lg w-full p-6 rounded-lg z-60 relative shadow-lg border border-gray-700">
+    <h4 class="text-xl font-bold mb-2 text-accent">Detalhes</h4>
+    <p id="modal-text" class="text-gray-200 mb-4"></p>
+    <div class="flex justify-end gap-3">
+      <button onclick="closeModal()" class="px-4 py-2 bg-gray-600 rounded text-white hover:bg-gray-500">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rodapé Padronizado -->
+<footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+  <p class="mb-1 text-base font-medium">DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES</p>
+  <p class="text-xs font-light tracking-wide">LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO</p>
+</footer>
+
+<script>
+  // === Configurações fixas ===
+  function monthHolidays(year) {
+    return [`${year}-10-27`, `${year}-11-20`];
+  }
+
+  async function loadSalas() {
+    try {
+      const resp = await fetch('/api/salas');
+      const salas = await resp.json();
+      const sel = document.getElementById('filter-sala');
+      sel.innerHTML = '<option value="">-- Selecione --</option>';
+      salas.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.nome || s.sala_nome}</option>`);
+    } catch (e) {
+      alert('Erro ao carregar salas');
+    }
+  }
+  loadSalas();
+
+  document.getElementById('btn-gerar').addEventListener('click', gerarRelatorio);
+
+  function getBusinessDaysOfMonth(year, month, extraHolidays=[]) {
+    const days = [];
+    const first = new Date(year, month-1, 1);
+    const last = new Date(year, month, 0);
+    for (let d = new Date(first); d <= last; d.setDate(d.getDate()+1)) {
+      const dow = d.getDay();
+      const iso = d.toISOString().slice(0,10);
+      if (dow === 0 || dow === 6) continue;
+      if (extraHolidays.includes(iso)) continue;
+      days.push(iso);
+    }
+    return days;
+  }
+
+  async function gerarRelatorio(){
+    const salaId = document.getElementById('filter-sala').value;
+    const mesVal = document.getElementById('filter-mes').value;
+    if (!salaId || !mesVal) { alert('Selecione sala e mês'); return; }
+
+    const [yy, mm] = mesVal.split('-');
+    const year = parseInt(yy), month = parseInt(mm);
+    const holidays = monthHolidays(year);
+    const dias = getBusinessDaysOfMonth(year, month, holidays);
+
+    try {
+      const resp = await fetch(`/api/relatorio_frequencia_mensal?sala_id=${salaId}&year=${year}&month=${month}`);
+      if (!resp.ok) throw new Error('Erro ao buscar relatório.');
+      const payload = await resp.json();
+
+      const freqMap = {};
+      (payload.frequencias || []).forEach(r => {
+        freqMap[r.aluno_id] = freqMap[r.aluno_id] || {};
+        freqMap[r.aluno_id][r.data] = r;
+      });
+
+      let html = '<table class="min-w-full text-sm border-collapse text-center">';
+      html += '<thead><tr class="border-b border-gray-700 bg-gray-800">';
+      html += '<th class="p-2 text-left">Aluno</th>';
+      dias.forEach(d => {
+        const dt = new Date(d);
+        html += `<th class="p-2">${dt.getDate()}<br><span class="text-xs text-gray-400">${dt.toLocaleDateString('pt-BR',{weekday:'short'})}</span></th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      (payload.alunos || []).forEach(aluno => {
+        html += `<tr class="border-t border-gray-700 hover:bg-gray-800/40"><td class="p-2 text-left">${aluno.nome}</td>`;
+        dias.forEach(d => {
+          const rec = (freqMap[aluno.id]||{})[d];
+          if (!rec) html += `<td class="p-2"><div class="cell-empty">-</div></td>`;
+          else {
+            const s = rec.status;
+            if (s === 'P') html += `<td class="p-2"><div class="cell-P">P</div></td>`;
+            else if (s === 'F') html += `<td class="p-2"><div class="cell-F">F</div></td>`;
+            else {
+              const motivo = (rec.motivo_atraso || rec.motivo_saida || 'Sem motivo').replaceAll('"','\'');
+              html += `<td class="p-2"><div class="cell-PA" onclick="openModal('${aluno.nome}','${d}','${s}','${motivo}')">${s}</div></td>`;
+            }
+          }
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      document.getElementById('table-wrap').innerHTML = html;
+      document.getElementById('report-container').classList.remove('hidden');
+      document.getElementById('report-title').textContent = `Relatório de ${mesVal}`;
+      document.getElementById('report-sub').textContent = `Sala: ${payload.sala_nome || salaId} • Dias úteis: ${dias.length}`;
+      document.getElementById('btn-download-pdf').classList.remove('hidden');
+
+      // PDF
+      document.getElementById('btn-download-pdf').onclick = async () => {
+        try {
+          const pdf = await fetch('/api/gerar_pdf_frequencia', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ sala_id: salaId, year, month })
+          });
+          if (!pdf.ok) throw new Error('Erro ao gerar PDF');
+          const blob = await pdf.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `frequencia_${salaId}_${year}-${String(month).padStart(2,'0')}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch(e){ alert(e.message); }
+      };
+
+      // CSV
+      document.getElementById('btn-export-csv').onclick = () => {
+        const rows = [];
+        const headers = ['Aluno', ...dias];
+        rows.push(headers.join(','));
+        (payload.alunos||[]).forEach(a => {
+          const cols = [`"${a.nome}"`];
+          dias.forEach(d => {
+            const rec = (freqMap[a.id]||{})[d];
+            cols.push(rec ? rec.status : '');
+          });
+          rows.push(cols.join(','));
+        });
+        const csv = rows.join('\n');
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `frequencia_${year}-${String(month).padStart(2,'0')}.csv`;
+        a.click();
+      };
+
+    } catch(e) {
+      alert('Erro ao gerar relatório: ' + e.message);
+    }
+  }
+
+  function openModal(aluno, data, status, motivo){
+    document.getElementById('modal-text').innerHTML = `<strong>${aluno}</strong><br>Data: ${data}<br>Status: ${status}<br><br><strong>Motivo:</strong><br>${motivo}`;
+    const m = document.getElementById('modal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function closeModal(){ const m = document.getElementById('modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+</script>
+</body>
+</html>

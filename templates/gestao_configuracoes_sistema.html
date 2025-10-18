@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuração Geral do Sistema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A', 
+                        'dark-secondary': '#1E293B',
+                        'config-system': '#10B981', /* Emerald/Accent */
+                        'text-light': '#F8FAFC', 
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+        
+        function saveSystemConfig(event) {
+            event.preventDefault();
+            const form = document.getElementById('system-config-form');
+            const data = {
+                ano_letivo: form.elements['ano-letivo'].value,
+                hora_entrada: form.elements['hora-entrada'].value,
+                senha_gestao: form.elements['senha-gestao'].value,
+                max_ra_digitos: form.elements['max-ra-digitos'].value
+            };
+            
+            console.log("Configurações de Sistema Salvas:", data);
+            alert("Configurações de Sistema salvas com sucesso! (Verifique o console)");
+        }
+    </script>
+    <style>
+         .form-input {
+            @apply w-full p-3 bg-white border border-gray-700 rounded-lg text-black focus:ring-config-system focus:border-config-system;
+        }
+    </style>
+</head>
+<body class="bg-dark-primary font-sans text-text-light min-h-screen">
+    
+    <div id="app-container" class="flex flex-col items-center justify-start p-4 md:p-8 min-h-screen">
+
+        <header class="w-full max-w-4xl text-center mb-8 mt-4">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-config-system leading-tight tracking-wider">
+                CONFIGURAÇÃO
+            </h1>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                SISTEMA E PARÂMETROS GERAIS
+            </h2>
+            <div class="mt-4">
+                 <button type="button" onclick="window.location.href='/gestao_configuracoes'"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    <span>VOLTAR AO MENU DE CONFIGURAÇÕES</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="w-full max-w-4xl flex-grow">
+            
+            <div class="bg-dark-secondary p-8 rounded-xl shadow-2xl space-y-6">
+                <h3 class="text-2xl font-bold border-b border-gray-600 pb-3 text-config-system">PARÂMETROS DE TEMPO E VALIDAÇÃO</h3>
+                
+                <form id="system-config-form" onsubmit="saveSystemConfig(event)">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        
+                        <div>
+                            <label for="ano-letivo" class="block text-sm font-medium text-gray-300 mb-1">
+                                Ano Letivo Atual *
+                            </label>
+                            <input type="number" id="ano-letivo" name="ano-letivo" min="2020" value="2025" class="form-input" required>
+                            <p class="text-xs text-gray-400 mt-1">Define o contexto de dados para todos os relatórios.</p>
+                        </div>
+                        
+                        <div>
+                            <label for="hora-entrada" class="block text-sm font-medium text-gray-300 mb-1">
+                                Horário Padrão de Entrada (Atraso) *
+                            </label>
+                            <input type="time" id="hora-entrada" name="hora-entrada" value="07:00" class="form-input" required>
+                            <p class="text-xs text-gray-400 mt-1">Hora limite para o cálculo de atraso.</p>
+                        </div>
+                        
+                        <div>
+                            <label for="senha-gestao" class="block text-sm font-medium text-gray-300 mb-1">
+                                Senha de Acesso à Edição de Gestão *
+                            </label>
+                            <input type="password" id="senha-gestao" name="senha-gestao" value="idrgestao" class="form-input" required>
+                            <p class="text-xs text-gray-400 mt-1">Usada para acesso de LÁPIS/Edição Completa nas ocorrências.</p>
+                        </div>
+
+                        <div>
+                            <label for="max-ra-digitos" class="block text-sm font-medium text-gray-300 mb-1">
+                                Máximo de Dígitos do RA/ID do Aluno
+                            </label>
+                            <input type="number" id="max-ra-digitos" name="max-ra-digitos" min="5" value="10" class="form-input">
+                            <p class="text-xs text-gray-400 mt-1">Usado na validação dos campos de RA/ID.</p>
+                        </div>
+
+                    </div>
+                    
+                    <h3 class="text-2xl font-bold border-b border-gray-600 pb-3 text-config-system mt-6">USUÁRIOS E PERMISSÕES</h3>
+                    
+                    <div class="p-4 bg-dark-primary rounded-lg border border-gray-700">
+                        <p class="text-gray-300">
+                           Esta seção será uma lista para gerenciar quais funcionários podem acessar a Gestão (Admin, Coordenador, etc.). Por enquanto, é apenas visual.
+                        </p>
+                    </div>
+
+
+                    <button type="submit" 
+                            class="w-full bg-config-system hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg mt-6">
+                        SALVAR CONFIGURAÇÕES DO SISTEMA
+                    </button>
+                    
+                </form>
+            </div>
+        </main>
+
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
+            </p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

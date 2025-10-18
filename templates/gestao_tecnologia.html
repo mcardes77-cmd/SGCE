@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GESTÃO DE TECNOLOGIA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuração do tema escuro
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A', 
+                        'dark-secondary': '#1E293B',
+                        'tech-color': '#5C6BC0', /* Deep Indigo/Blue para tecnologia */
+                        'alert-danger': '#DC2626', /* Cor para Ocorrência */
+                        'accent': '#10B981', 
+                        'text-light': '#F8FAFC', 
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+        // Usando window.location.href diretamente para evitar a função navigateTo desnecessária.
+        // window.navigateTo = function(path) {
+        //     window.location.href = path;
+        // };
+    </script>
+    <style>
+        html, body {
+            height: 100%;
+        }
+        #app-container {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="bg-dark-primary font-sans text-text-light">
+    
+    <div id="app-container" class="flex flex-col items-center justify-between p-4 md:p-8">
+
+        <header class="w-full text-center mb-8 mt-4">
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-tech-color leading-tight tracking-wider">
+                MÓDULO DE GESTÃO DE TECNOLOGIA
+            </h1>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                MENU DE TECNOLOGIA
+            </h2>
+             <div class="mt-4">
+                 <button type="button" onclick="window.location.href='/'"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    <span>VOLTAR AO MENU PRINCIPAL</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="w-full max-w-4xl flex-grow flex items-start justify-center">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full p-4 sm:p-6 bg-dark-secondary rounded-xl shadow-2xl">
+                
+                <button onclick="window.location.href='/gestao_tecnologia_agendamento'" 
+                        class="p-5 text-xl font-semibold bg-tech-color hover:bg-indigo-600 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    AGENDAMENTO
+                </button>
+                
+                <button onclick="window.location.href='/gestao_tecnologia_historico'" 
+                        class="p-5 text-xl font-semibold bg-tech-color hover:bg-indigo-600 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                    HISTÓRICO
+                </button>
+
+                <button onclick="window.location.href='/gestao_tecnologia_ocorrencia'" 
+                        class="p-5 text-xl font-semibold bg-alert-danger hover:bg-red-700 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    OCORRÊNCIA
+                </button>
+
+            </div>
+        </main>
+
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
+            </p>
+            <p class="text-xs font-light tracking-wide">
+                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
+            </p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

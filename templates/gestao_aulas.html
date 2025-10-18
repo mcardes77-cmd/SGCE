@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GESTÃO DE AULAS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuração personalizada do Tailwind para um tema escuro profissional
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A', // Slate 900
+                        'dark-secondary': '#1E293B', // Slate 800
+                        'accent': '#10B981', // Emerald 500 (Verde)
+                        'info': '#3B82F6', // Blue 500 (Azul)
+                        'danger': '#EF4444', // Red 500 (Vermelho)
+                        'warning': '#F59E0B', // Amber 500 (Amarelo)
+                        'text-light': '#F8FAFC', // Slate 50
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilo para garantir que o corpo ocupe toda a altura da tela */
+        html, body {
+            height: 100%;
+        }
+        /* Estilo para centralizar o conteúdo verticalmente */
+        #app-container {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="bg-dark-primary font-sans text-text-light">
+    
+    <div id="app-container" class="flex flex-col items-center justify-between p-4 md:p-8">
+
+        <div class="w-full max-w-4xl flex justify-start mb-6">
+            <button onclick="window.location.href='/'" 
+                    class="flex items-center space-x-1 text-sm font-semibold text-gray-400 hover:text-accent transition duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Voltar ao Menu Principal</span>
+            </button>
+        </div>
+
+        <header class="w-full text-center mb-8 mt-4">
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-info leading-tight tracking-wider">
+                MÓDULO DE GESTÃO DE AULAS
+            </h1>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                OPÇÕES DE PLANEJAMENTO E DOCUMENTAÇÃO
+            </h2>
+        </header>
+
+        <main class="w-full max-w-4xl flex-grow flex items-start justify-center">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full p-4 sm:p-6 bg-dark-secondary rounded-xl shadow-2xl">
+                
+                <button onclick="window.location.href='/gestao_agenda'" 
+                        class="p-5 text-xl font-semibold bg-accent hover:bg-emerald-600 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    GESTÃO DE AGENDA (AULAS)
+                </button>
+
+                <button onclick="window.location.href='/gestao_plano_aula'" 
+                        class="p-5 text-xl font-semibold bg-info hover:bg-blue-600 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    GESTÃO DE PLANO DE AULA
+                </button>
+                
+                <button onclick="window.location.href='/gestao_guia_aprendizagem'" 
+                        class="p-5 text-xl font-semibold bg-danger hover:bg-red-600 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    GUIA DE APRENDIZAGEM
+                </button>
+
+                <button onclick="window.location.href='/gestao_validacao_documentos'" 
+                        class="p-5 text-xl font-semibold bg-warning hover:bg-yellow-600 transition duration-200 ease-in-out rounded-lg shadow-lg transform hover:scale-[1.02] text-white">
+                    VALIDAÇÃO DE DOCUMENTOS
+                </button>
+
+            </div>
+        </main>
+
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
+            </p>
+            <p class="text-xs font-light tracking-wide">
+                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
+            </p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

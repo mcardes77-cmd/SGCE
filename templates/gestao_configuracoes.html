@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu de Configuração</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuração do tema escuro (replicada para manter a consistência visual)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A', // Slate 900
+                        'dark-secondary': '#1E293B', // Slate 800
+                        'config-base': '#4B5563', // Gray 600 (Cor base de Configuração)
+                        'secondary-accent': '#4F46E5', // Indigo 600 (Para destacar a configuração de Fluxo)
+                        'text-light': '#F8FAFC', // Slate 50
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        html, body {
+            height: 100%;
+        }
+        #app-container {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="bg-dark-primary font-sans text-text-light">
+    
+    <div id="app-container" class="flex flex-col items-center justify-between p-4 md:p-8 min-h-screen">
+
+        <header class="w-full text-center mb-8 mt-4">
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-config-base leading-tight tracking-wider">
+                MÓDULO DE CONFIGURAÇÃO
+            </h1>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                MENU DE CONFIGURAÇÃO
+            </h2>
+             <div class="mt-4">
+                 <button type="button" onclick="window.location.href='/'"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    <span>VOLTAR AO MENU PRINCIPAL</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="w-full max-w-4xl flex-grow flex items-center justify-center">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full p-6 bg-dark-secondary rounded-xl shadow-2xl">
+                
+                <button onclick="window.location.href='/gestao_configuracoes_sistema'" 
+                        class="flex flex-col items-center justify-center p-6 text-2xl font-bold bg-config-base hover:bg-gray-700 transition duration-200 ease-in-out rounded-lg shadow-xl transform hover:scale-[1.03] text-white">
+                    <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    CONFIGURAÇÃO DE SISTEMA
+                    <span class="text-sm font-light opacity-80 mt-1">(Geral, Usuários, Permissões)</span>
+                </button>
+                
+                <button onclick="window.location.href='/gestao_configuracoes_fluxo'" 
+                        class="flex flex-col items-center justify-center p-6 text-2xl font-bold bg-secondary-accent hover:bg-indigo-700 transition duration-200 ease-in-out rounded-lg shadow-xl transform hover:scale-[1.03] text-white">
+                    <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
+                    FLUXO DE TUTORIA INDIVIDUAL
+                    <span class="text-sm font-light opacity-80 mt-1">(Etapas de Acompanhamento)</span>
+                </button>
+
+            </div>
+        </main>
+
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
+            </p>
+            <p class="text-xs font-light tracking-wide">
+                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS
+            </p>
+        </footer>
+
+    </div>
+
+</body>
+</html>
