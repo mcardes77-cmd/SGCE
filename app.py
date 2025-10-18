@@ -87,7 +87,7 @@ DEFAULT_AUTOTEXT = "ATENDIMENTO NÃO SOLICITADO PELO RESPONSÁVEL DA OCORRÊNCIA
 
 @app.route('/')
 def home():
-    return render_template('home.html')  
+   "Serviço ativo! Rota raiz OK.", 200
 
 @app.route('/gestao_aulas')
 def gestao_aulas():
@@ -1812,6 +1812,7 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
