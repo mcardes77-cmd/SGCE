@@ -613,7 +613,7 @@ def get_alunos_com_ocorrencias_por_sala(sala_id):
         # O frontend espera: [{"id": 1, "nome": "Nome Aluno"}, ...]
         alunos_formatados = [{"id": a['id'], "nome": a['nome']} for a in handle_supabase_response(alunos)]
         
-        return jsonify(alunos_formatadas)
+        return jsonify(alunos_formatados)
     except Exception as e:
         logging.exception(f"Erro ao buscar alunos com ocorrências na sala {sala_id}")
         return jsonify({"error": str(e)}), 500
@@ -1831,4 +1831,5 @@ def salvar_atendimento_compat():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
