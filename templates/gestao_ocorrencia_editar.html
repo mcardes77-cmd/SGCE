@@ -215,6 +215,7 @@ function aplicarPermissoesPorNivel(nivel) {
   }
 }
 
+// Localize esta função (aproximadamente linha 173) e substitua:
 async function salvarAtendimento() {
   if (!numeroGlobal || !nivelGlobal || !mapaCampoPorNivel[nivelGlobal]) {
     mostrarMensagem('Não é possível salvar: nível ou ID inválido.', 'error');
@@ -224,29 +225,63 @@ async function salvarAtendimento() {
   const campoId = mapaCampoPorNivel[nivelGlobal];
   const valor = document.getElementById(campoId).value || '';
 
+  // Mapeamento de 'T', 'C', 'G' para os nomes completos esperados pelo Python
+  const nivelMap = {
+      'T': 'tutor',
+      'C': 'coordenacao',
+      'G': 'gestao'
+  };
+  const nivelBackend = nivelMap[nivelGlobal];
+
+  if (!nivelBackend) {
+      mostrarMensagem('Nível de atendimento desconhecido ou inválido.', 'error');
+      return;
+  }
+  
+  // Validação de conteúdo para evitar 400
+  if (!valor.trim()) {
+      mostrarMensagem('O texto do atendimento não pode ser vazio.', 'error');
+      return;
+  }
+
   try {
     const resp = await fetch('/api/salvar_atendimento', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        numero: numeroGlobal,
-        nivel: nivelGlobal,
-        atendimento: valor
+        // CORRIGIDO: O backend espera a chave 'id'
+        id: numeroGlobal, 
+        // CORRIGIDO: O backend espera 'tutor', 'coordenacao', ou 'gestao'
+        nivel: nivelBackend, 
+        // CORRIGIDO: O backend espera a chave 'texto'
+        texto: valor 
       })
     });
 
     if (!resp.ok) {
       const text = await resp.text();
-      throw new Error(`Erro salvar atendimento. Status ${resp.status}: ${text}`);
+      // Tenta obter o erro do JSON para um feedback melhor
+      try {
+          const errorJson = JSON.parse(text);
+          throw new Error(`Erro: ${errorJson.error || text}`);
+      } catch {
+          throw new Error(`Erro salvar atendimento. Status ${resp.status}: ${text}`);
+      }
     }
 
-    mostrarMensagem('Atendimento salvo com sucesso!', 'success');
+    // Se o salvamento foi bem-sucedido, recarrega a página ou a seção
+    mostrarMensagem('Atendimento salvo com sucesso! Recarregando...', 'success');
+    
+    // Opcional: Recarregar a página ou apenas os detalhes para ver o novo status.
+    setTimeout(() => {
+        window.location.reload(); 
+    }, 1000);
+
   } catch (err) {
     console.error('Erro salvarAtendimento:', err);
-    mostrarMensagem('Falha ao salvar atendimento. Veja console.', 'error');
+    mostrarMensagem('Falha ao salvar atendimento: ' + err.message, 'error');
   }
 }
-
 function mostrarMensagem(msg, tipo='info') {
   const el = document.getElementById('mensagem-status');
   el.textContent = msg;
@@ -270,3 +305,4 @@ function mostrarMensagem(msg, tipo='info') {
 </html>
 
                        
+
