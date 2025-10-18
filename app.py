@@ -1,7 +1,8 @@
 import os
 import logging
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, send_file
+# Importações consolidadas, incluindo send_file necessário para o PDF
+from flask import Flask, render_template, request, jsonify, send_file 
 from supabase import create_client, Client
 import json
 from datetime import datetime
@@ -28,13 +29,11 @@ app = Flask(__name__, template_folder='templates')
 
 
 # =========================================================
-# LOG DE REQUISIÇÕES (para debug - opcional)
+# LOG DE REQUISIÇÕES (para debug)
 # =========================================================
 @app.before_request
 def log_request():
-    # Esta rota loga todas as requisições, mas não quebra a inicialização
     print(f"[LOG] Rota acessada: {request.path}")
-
 
 # =========================================================
 # FUNÇÕES AUXILIARES
@@ -88,21 +87,12 @@ DEFAULT_AUTOTEXT = "ATENDIMENTO NÃO SOLICITADO PELO RESPONSÁVEL DA OCORRÊNCIA
 
 
 # =========================================================
-# ROTA DE HEALTH CHECK (Para evitar 404 do Render)
-# =========================================================
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Rota simples para o ambiente de hospedagem verificar a saúde da aplicação."""
-    return jsonify({"status": "ok"}), 200
-
-# =========================================================
 # ROTAS DE PÁGINA PRINCIPAIS (Renderiza templates)
 # =========================================================
 
 @app.route('/')
 def home():
-    # Rota corrigida para renderizar o home.html
-    return render_template('home.html')
+    return render_template('home.html')  
 
 @app.route('/gestao_aulas')
 def gestao_aulas():
@@ -771,6 +761,30 @@ def api_get_guia_aprendizagem():
         return jsonify(guia)
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar Guia de Aprendizagem: {e}", "status": 500}), 500
+
+# Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
+@app.route("/api/salvar_atendimento", methods=["POST"])
+def api_salvar_atendimento():
+    """
+    Função de compatibilidade para a rota que o frontend está chamando.
+    Extrai o ID da ocorrência do corpo JSON e chama a função principal de registro.
+    """
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Corpo da requisição vazio ou JSON inválido. Verifique o Content-Type."}), 400
+
+    ocorrencia_id = data.get("id") 
+    
+    if not ocorrencia_id:
+        # Se o frontend não incluiu o ID da ocorrência, tenta extraí-lo do body
+        return jsonify({"error": "Dados obrigatórios (ID da ocorrência) ausentes."}), 400
+        
+    try:
+        # Chama a função principal de registro (que já estava no seu código)
+        return registrar_atendimento(int(ocorrencia_id))
+    except Exception as e:
+        return jsonify({"error": f"Falha interna ao processar o atendimento: {str(e)}", "status": 500}), 500
+
 
 @app.route("/api/registrar_atendimento/<int:ocorrencia_id>", methods=["POST"])
 def registrar_atendimento(ocorrencia_id):
@@ -1742,8 +1756,9 @@ def gerar_pdf_ocorrencias():
 
     try:
         # Buscar ocorrências no Supabase
+        # CORREÇÃO 1: 'tutor' alterado para 'tutor_nome'
         resp = supabase.table('ocorrencias').select(
-            "numero, data_hora, descricao, status, aluno_nome, sala_id, tutor, atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao"
+            "numero, data_hora, descricao, status, aluno_nome, sala_id, tutor_nome, atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao"
         ).in_('numero', numeros).order('data_hora', desc=True).execute()
 
         ocorrencias = resp.data
@@ -1763,7 +1778,8 @@ def gerar_pdf_ocorrencias():
         # Cabeçalho do aluno (usando primeira ocorrência)
         aluno_nome = ocorrencias[0].get("aluno_nome", "Aluno Desconhecido")
         sala = ocorrencias[0].get("sala_id", "Indefinida")
-        tutor = ocorrencias[0].get("tutor", "Indefinido")
+        # CORREÇÃO 2: 'tutor' alterado para 'tutor_nome'
+        tutor = ocorrencias[0].get("tutor_nome", "Indefinido") 
         pdf.cell(0, 7, f"Aluno: {aluno_nome}    Sala: {sala}", ln=True)
         pdf.cell(0, 7, f"Tutor: {tutor}", ln=True)
         pdf.ln(5)
@@ -1810,20 +1826,6 @@ def gerar_pdf_ocorrencias():
     except Exception as e:
         return jsonify({"error": f"Falha ao gerar PDF: {str(e)}"}), 500
 
-# NOVA ROTA (que o seu frontend está chamando)
-# Se o frontend está enviando o 'id' e o 'nivel' no corpo da requisição POST
-@app.route("/api/salvar_atendimento", methods=["POST"])
-def salvar_atendimento_compat():
-    # O frontend DEVE enviar o ID da ocorrência no corpo da requisição (JSON)
-    data = request.get_json()
-    ocorrencia_id = data.get("id") 
-    
-    if not ocorrencia_id:
-         return jsonify({"error": "ID da ocorrência ausente no corpo da requisição."}), 400
-         
-    # Redireciona a lógica para a função principal, que espera o ID
-    return registrar_atendimento(int(ocorrencia_id))
-
 
 # =========================================================
 # EXECUÇÃO
@@ -1831,5 +1833,3 @@ def salvar_atendimento_compat():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
-
