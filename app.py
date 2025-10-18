@@ -82,7 +82,13 @@ def calcular_dias_resposta(dt_abertura, dt_fechamento_str):
 
 DEFAULT_AUTOTEXT = "ATENDIMENTO NÃO SOLICITADO PELO RESPONSÁVEL DA OCORRÊNCIA"
 
-
+# ROTA DE HEALTH CHECK
+# =========================================================
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Rota simples para o ambiente de hospedagem verificar a saúde da aplicação."""
+    return jsonify({"status": "ok"}), 200
+    
 # =========================================================
 # ROTAS DE PÁGINA PRINCIPAIS (Renderiza templates)
 # =========================================================
@@ -1814,6 +1820,7 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
