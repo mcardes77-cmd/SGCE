@@ -786,7 +786,7 @@ def api_frequencia():
     alunos = supabase.table("d_alunos").select("id, nome").eq("sala_id", sala_id).execute().data
 
     # Buscar registros de frequência do mês
-    registros = supabase.table("d_frequencia") \
+    registros = supabase.table("f_frequencia") \
         .select("aluno_id, data, status") \
         .gte("data", f"{ano}-{mes:02d}-01") \
         .lte("data", f"{ano}-{mes:02d}-31") \
@@ -818,7 +818,7 @@ def detalhe_frequencia():
     aluno_id = aluno[0]['id']
 
     # Buscar registro de frequência específico
-    registro = supabase.table("d_frequencia") \
+    registro = supabase.table("f_frequencia") \
         .select("data, status, hora_entrada, hora_saida, observacao") \
         .eq("aluno_id", aluno_id) \
         .eq("data", data) \
@@ -1942,6 +1942,7 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
