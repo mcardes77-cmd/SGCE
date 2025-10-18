@@ -770,6 +770,65 @@ def api_get_guia_aprendizagem():
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar Guia de Aprendizagem: {e}", "status": 500}), 500
 
+@app.route('/api/salas')
+def api_salas():
+    # Exemplo: buscar salas no Supabase
+    response = supabase.table("d_salas").select("id, nome").execute()
+    return jsonify(response.data)
+
+@app.route('/api/frequencia')
+def api_frequencia():
+    sala_id = request.args.get('sala')
+    mes = int(request.args.get('mes'))
+    ano = 2025  # ou datetime.now().year
+
+    # Buscar alunos da sala
+    alunos = supabase.table("d_alunos").select("id, nome").eq("sala_id", sala_id).execute().data
+
+    # Buscar registros de frequência do mês
+    registros = supabase.table("d_frequencia") \
+        .select("aluno_id, data, status") \
+        .gte("data", f"{ano}-{mes:02d}-01") \
+        .lte("data", f"{ano}-{mes:02d}-31") \
+        .execute().data
+
+    resultado = []
+    for aluno in alunos:
+        freq_map = {r['data']: r['status'] for r in registros if r['aluno_id'] == aluno['id']}
+        resultado.append({
+            "nome": aluno['nome'],
+            "frequencia": freq_map
+        })
+
+    return jsonify(resultado)
+
+@app.route('/api/detalhe_frequencia')
+def detalhe_frequencia():
+    aluno_nome = request.args.get('aluno')
+    data = request.args.get('data')
+
+    if not aluno_nome or not data:
+        return jsonify({"erro": "Parâmetros inválidos"}), 400
+
+    # Buscar o aluno pelo nome (ou ID, se preferir)
+    aluno = supabase.table("d_alunos").select("id").ilike("nome", aluno_nome).execute().data
+    if not aluno:
+        return jsonify({"erro": "Aluno não encontrado"}), 404
+
+    aluno_id = aluno[0]['id']
+
+    # Buscar registro de frequência específico
+    registro = supabase.table("d_frequencia") \
+        .select("data, status, hora_entrada, hora_saida, observacao") \
+        .eq("aluno_id", aluno_id) \
+        .eq("data", data) \
+        .execute().data
+
+    if not registro:
+        return jsonify({"erro": "Registro não encontrado"}), 404
+
+    return jsonify(registro[0])
+    
 # Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
 # Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
 @app.route("/api/salvar_atendimento", methods=["POST"])
@@ -1883,5 +1942,6 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
