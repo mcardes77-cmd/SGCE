@@ -145,7 +145,7 @@ def gestao_relatorio_estatistico():
 @app.route('/gestao_relatorio_frequencia')
 def gestao_relatorio_frequencia():
     # ROTA CORRIGIDA: Aponta para o arquivo que contém a lógica de filtro/tabela de frequência
-    return render_template('gestao_relatorio_frequencia (4).html') 
+    return render_template('gestao_relatorio_frequencia.html') 
 
 @app.route('/gestao_relatorio_impressao')
 def gestao_relatorio_impressao():
@@ -1883,4 +1883,5 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
