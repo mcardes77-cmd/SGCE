@@ -1,11 +1,13 @@
 import os
 import logging
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from supabase import create_client, Client
 import json
 from datetime import datetime
 from calendar import monthrange 
+import io
+from fpdf import FPDF
 
 # =========================================================
 # CONFIGURAÇÕES INICIAIS
@@ -25,7 +27,14 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__, template_folder='templates')
 
 
-print("[DEBUG] Flask app initialized and attempting to define routes.")
+# =========================================================
+# LOG DE REQUISIÇÕES (para debug - opcional)
+# =========================================================
+@app.before_request
+def log_request():
+    # Esta rota loga todas as requisições, mas não quebra a inicialização
+    print(f"[LOG] Rota acessada: {request.path}")
+
 
 # =========================================================
 # FUNÇÕES AUXILIARES
@@ -78,16 +87,22 @@ def calcular_dias_resposta(dt_abertura, dt_fechamento_str):
 DEFAULT_AUTOTEXT = "ATENDIMENTO NÃO SOLICITADO PELO RESPONSÁVEL DA OCORRÊNCIA"
 
 
+# =========================================================
+# ROTA DE HEALTH CHECK (Para evitar 404 do Render)
+# =========================================================
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Rota simples para o ambiente de hospedagem verificar a saúde da aplicação."""
+    return jsonify({"status": "ok"}), 200
 
- print("[DEBUG] Flask app initialized and attempting to define routes.")
-    
 # =========================================================
 # ROTAS DE PÁGINA PRINCIPAIS (Renderiza templates)
 # =========================================================
 
 @app.route('/')
 def home():
-   "Serviço ativo! Rota raiz OK.", 200
+    # Rota corrigida para renderizar o home.html
+    return render_template('home.html')
 
 @app.route('/gestao_aulas')
 def gestao_aulas():
@@ -598,7 +613,7 @@ def get_alunos_com_ocorrencias_por_sala(sala_id):
         # O frontend espera: [{"id": 1, "nome": "Nome Aluno"}, ...]
         alunos_formatados = [{"id": a['id'], "nome": a['nome']} for a in handle_supabase_response(alunos)]
         
-        return jsonify(alunos_formatados)
+        return jsonify(alunos_formatadas)
     except Exception as e:
         logging.exception(f"Erro ao buscar alunos com ocorrências na sala {sala_id}")
         return jsonify({"error": str(e)}), 500
@@ -1716,15 +1731,6 @@ def api_ocorrencias_por_aluno(aluno_id):
     except Exception as e:
         return jsonify({"error": f"Falha ao buscar ocorrências: {str(e)}"}), 500
 
-from flask import send_file
-import io
-from fpdf import FPDF  # ou qualquer biblioteca de PDF que você use
-
-from flask import Flask, request, send_file, jsonify
-import io
-from fpdf import FPDF
-
-app = Flask(__name__)
 
 @app.route('/api/gerar_pdf_ocorrencias', methods=['POST'])
 def gerar_pdf_ocorrencias():
@@ -1805,22 +1811,9 @@ def gerar_pdf_ocorrencias():
         return jsonify({"error": f"Falha ao gerar PDF: {str(e)}"}), 500
 
 
-
 # =========================================================
 # EXECUÇÃO
 # =========================================================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
-
-
-
-
-
-
-
-
-
-
-
