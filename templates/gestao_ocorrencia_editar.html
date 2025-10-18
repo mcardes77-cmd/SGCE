@@ -269,12 +269,12 @@ async function salvarAtendimento() {
       }
     }
 
-    // Se o salvamento foi bem-sucedido, recarrega a página ou a seção
-    mostrarMensagem('Atendimento salvo com sucesso! Recarregando...', 'success');
+    // [CORREÇÃO APLICADA] Redirecionamento em caso de sucesso
+    mostrarMensagem('Atendimento salvo com sucesso! Redirecionando para Ocorrências Abertas...', 'success');
     
-    // Opcional: Recarregar a página ou apenas os detalhes para ver o novo status.
+    // Redireciona para /gestao_ocorrencia_abertas após 1 segundo
     setTimeout(() => {
-        window.location.reload(); 
+        window.location.href = '/gestao_ocorrencia_abertas'; 
     }, 1000);
 
   } catch (err) {
@@ -305,4 +305,5 @@ function mostrarMensagem(msg, tipo='info') {
 </html>
 
                        
+
 
