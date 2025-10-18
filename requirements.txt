@@ -2,6 +2,5 @@ Flask
 supabase
 python-dotenv
 gunicorn
-reportlab
-fpdf
 fpdf2
+
