@@ -825,39 +825,112 @@ def detalhe_frequencia():
         .execute().data
 
     if not registro:
+@app.route("/api/frequencia")
+def get_frequencia():
+    """
+    Retorna os registros de frequência de uma sala e mês,
+    formatando apenas o número do dia como coluna.
+    """
+    sala = request.args.get("sala")
+    mes = request.args.get("mes")
+    ano = datetime.now().year
+
+    if not sala or not mes:
+        return jsonify({"erro": "Sala e mês são obrigatórios"}), 400
+
+    # 🧩 Busca alunos da sala
+    alunos_resp = supabase.table("d_alunos") \
+        .select("id, nome") \
+        .eq("sala_id", sala) \
+        .order("nome", desc=False) \
+        .execute()
+
+    alunos = alunos_resp.data or []
+
+    # 📆 Intervalo do mês
+    inicio_mes = f"{ano}-{str(mes).zfill(2)}-01"
+    fim_mes = f"{ano}-{str(mes).zfill(2)}-31"
+
+    # 🔍 Frequência do mês
+    freq_resp = supabase.table("f_frequencia") \
+        .select("id, fk_aluno_id, fk_sala_id, status, created_at") \
+        .eq("fk_sala_id", sala) \
+        .gte("created_at", inicio_mes) \
+        .lte("created_at", fim_mes) \
+        .execute()
+
+    frequencias = freq_resp.data or []
+
+    # 🗂️ Monta dicionário aluno → dia → status
+    resultado = []
+    for aluno in alunos:
+        freq_dict = {}
+        for f in frequencias:
+            if f["fk_aluno_id"] == aluno["id"]:
+                try:
+                    data = datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%S%z")
+                except ValueError:
+                    data = datetime.fromisoformat(f["created_at"].replace("Z", "+00:00"))
+                dia = str(data.day).zfill(2)
+                freq_dict[dia] = f.get("status", "")
+        resultado.append({
+            "nome": aluno["nome"],
+            "id": aluno["id"],
+            "frequencia": freq_dict
+        })
+
+    return jsonify(resultado)
+
+
+@app.route("/api/detalhe_frequencia")
+def detalhe_frequencia():
+    """
+    Retorna os detalhes do registro de atraso ou saída antecipada
+    para exibir no modal.
+    """
+    aluno_id = request.args.get("aluno_id")
+    sala_id = request.args.get("sala_id")
+    dia = request.args.get("dia")
+    mes = request.args.get("mes")
+    ano = datetime.now().year
+
+    if not aluno_id or not sala_id or not dia or not mes:
+        return jsonify({"erro": "Parâmetros obrigatórios ausentes"}), 400
+
+    # Constrói o intervalo do dia
+    data_inicio = f"{ano}-{str(mes).zfill(2)}-{str(dia).zfill(2)}T00:00:00Z"
+    data_fim = f"{ano}-{str(mes).zfill(2)}-{str(dia).zfill(2)}T23:59:59Z"
+
+    # 🔎 Busca o registro específico
+    resp = supabase.table("f_frequencia") \
+        .select("*") \
+        .eq("fk_aluno_id", aluno_id) \
+        .eq("fk_sala_id", sala_id) \
+        .gte("created_at", data_inicio) \
+        .lte("created_at", data_fim) \
+        .limit(1) \
+        .execute()
+
+    if not resp.data:
         return jsonify({"erro": "Registro não encontrado"}), 404
 
-    return jsonify(registro[0])
-    
-# Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
-# Rota de compatibilidade para o frontend que chama /api/salvar_atendimento
-@app.route("/api/salvar_atendimento", methods=["POST"])
-def api_salvar_atendimento():
-    """
-    Função de compatibilidade para a rota que o frontend está chamando.
-    Extrai o ID da ocorrência do corpo JSON e chama a função principal de registro.
-    """
-    data = request.get_json()
-    if data is None:
-        return jsonify({"error": "Corpo da requisição vazio ou JSON inválido. Verifique o Content-Type."}), 400
+    registro = resp.data[0]
 
-    ocorrencia_id = data.get("id") 
-    
-    # Adicionando suporte à chave 'numero' caso o frontend esteja atrasado
-    if not ocorrencia_id:
-        ocorrencia_id = data.get("numero")
-    
-    if not ocorrencia_id:
-        return jsonify({"error": "Dados obrigatórios (ID da ocorrência) ausentes."}), 400
-        
-    try:
-        # Chama a função principal de registro
-        return registrar_atendimento(int(ocorrencia_id))
-    except Exception as e:
-        # Log detalhado de falhas internas
-        logging.exception(f"Falha na rota de compatibilidade /api/salvar_atendimento para ID {ocorrencia_id}")
-        return jsonify({"error": f"Falha interna ao processar o atendimento: {str(e)}", "status": 500}), 500
+    # Retorna apenas os campos de atraso/saída
+    detalhes = {
+        "status": registro.get("status"),
+        "hora_atraso": registro.get("hora_atraso"),
+        "motivo_atraso": registro.get("motivo_atraso"),
+        "responsavel_atraso": registro.get("responsavel_atraso"),
+        "documento_atraso": registro.get("documento_atraso"),
+        "hora_saida": registro.get("hora_saida"),
+        "motivo_saida": registro.get("motivo_saida"),
+        "responsavel_saida": registro.get("responsavel_saida"),
+        "documento_saida": registro.get("documento_saida"),
+        "created_at": registro.get("created_at")
+    }
 
+    return jsonify(detalhes)
 
 @app.route("/api/registrar_atendimento/<int:ocorrencia_id>", methods=["POST"])
 def registrar_atendimento(ocorrencia_id):
@@ -1942,6 +2015,7 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
