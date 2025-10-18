@@ -6,12 +6,16 @@
   <title>Relatório de Frequência</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- Cabeçalho -->
   <header class="bg-blue-800 text-white py-4 shadow">
     <h1 class="text-center text-2xl font-bold">Relatório de Frequência</h1>
   </header>
 
+  <!-- Filtros -->
   <main class="flex-1 p-6">
     <div class="bg-white rounded-xl shadow p-6 mb-6">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
@@ -31,6 +35,7 @@
       </div>
     </div>
 
+    <!-- Tabela -->
     <div id="tabelaContainer" class="overflow-x-auto bg-white rounded-xl shadow p-4"></div>
   </main>
 
@@ -40,11 +45,13 @@
       <button onclick="fecharModal()" class="absolute top-2 right-3 text-gray-500 hover:text-red-600">✕</button>
       <h2 class="text-lg font-semibold mb-2">Detalhes do Registro</h2>
       <div id="modalContent" class="text-sm text-gray-700 space-y-1"></div>
+      <button id="btnPDF" class="mt-4 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 w-full">Gerar PDF</button>
     </div>
   </div>
 
   <script>
     const feriadosFixos = ["2025-10-27", "2025-11-20"]; // feriados fixos
+    let ultimoRegistro = null; // guarda o registro atual do modal
 
     async function carregarSalas() {
       const resp = await fetch('/api/salas');
@@ -64,9 +71,9 @@
         "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
       ];
       const sel = document.getElementById('mesSelect');
-      meses.forEach((m, i) => {
+      meses.forEach((m,i) => {
         const opt = document.createElement('option');
-        opt.value = i + 1;
+        opt.value = i+1;
         opt.textContent = m;
         sel.appendChild(opt);
       });
@@ -87,7 +94,7 @@
       container.innerHTML = '';
 
       const dias = [];
-      const ano = 2025; // pode vir do servidor
+      const ano = 2025; 
       const totalDias = new Date(ano, mes, 0).getDate();
 
       for (let d = 1; d <= totalDias; d++) {
@@ -101,9 +108,7 @@
       let html = `<table class="min-w-full border text-center text-sm">
         <thead class="bg-blue-100">
           <tr><th class="border px-2 py-1">Aluno</th>`;
-      dias.forEach(d => {
-        html += `<th class="border px-2 py-1">${d.format('DD/MM')}</th>`;
-      });
+      dias.forEach(d => html += `<th class="border px-2 py-1">${d.format('DD/MM')}</th>`);
       html += `</tr></thead><tbody>`;
 
       dados.forEach(aluno => {
@@ -116,7 +121,7 @@
           if (["PA","PS","PSA"].includes(freq)) cor = "text-yellow-600 font-bold cursor-pointer underline";
 
           const click = ["PA","PS","PSA"].includes(freq)
-            ? `onclick="abrirModal('${aluno.nome}', '${d.format('DD/MM')}', '${freq}')"`
+            ? `onclick="abrirModalDetalhe('${aluno.nome}','${d.format("YYYY-MM-DD")}','${freq}')"`
             : "";
 
           html += `<td class="border px-2 py-1 ${cor}" ${click}>${freq}</td>`;
@@ -128,14 +133,43 @@
       container.innerHTML = html;
     }
 
-    function abrirModal(nome, dia, tipo) {
+    async function abrirModalDetalhe(nome, data, tipo) {
       document.getElementById('modal').classList.remove('hidden');
-      document.getElementById('modalContent').innerHTML = `
-        <p><strong>Aluno:</strong> ${nome}</p>
-        <p><strong>Data:</strong> ${dia}</p>
-        <p><strong>Tipo:</strong> ${tipo}</p>
-        <p><em>Detalhes do registro serão carregados via Flask/Supabase...</em></p>
-      `;
+      const modalContent = document.getElementById('modalContent');
+      modalContent.innerHTML = `<p>Carregando detalhes...</p>`;
+
+      try {
+        const resp = await fetch(`/api/detalhe_frequencia?aluno=${encodeURIComponent(nome)}&data=${data}`);
+        const info = await resp.json();
+        if (info.erro) {
+          modalContent.innerHTML = `<p class="text-red-600">${info.erro}</p>`;
+          return;
+        }
+
+        ultimoRegistro = info; // guarda para gerar PDF
+
+        modalContent.innerHTML = `
+          <p><strong>Aluno:</strong> ${nome}</p>
+          <p><strong>Data:</strong> ${dayjs(info.data).format('DD/MM/YYYY')}</p>
+          <p><strong>Tipo:</strong> ${info.tipo_registro}</p>
+          <hr class="my-1">
+          <h3 class="font-semibold text-green-700">Atraso</h3>
+          <p><strong>Hora:</strong> ${info.hora_atraso || '-'}</p>
+          <p><strong>Motivo:</strong> ${info.motivo_atraso || '-'}</p>
+          <p><strong>Responsável:</strong> ${info.responsavel_atraso || '-'}</p>
+          <p><strong>Documento:</strong> ${info.documento_atraso || '-'}</p>
+          <hr class="my-1">
+          <h3 class="font-semibold text-yellow-700">Saída Antecipada</h3>
+          <p><strong>Hora:</strong> ${info.hora_saida || '-'}</p>
+          <p><strong>Motivo:</strong> ${info.motivo_saida || '-'}</p>
+          <p><strong>Responsável:</strong> ${info.responsavel_saida || '-'}</p>
+          <p><strong>Documento:</strong> ${info.documento_saida || '-'}</p>
+          <hr class="my-1">
+          <p><strong>Observação:</strong> ${info.observacao || 'Nenhuma registrada'}</p>
+        `;
+      } catch (err) {
+        modalContent.innerHTML = `<p class="text-red-600">Erro ao carregar detalhes.</p>`;
+      }
     }
 
     function fecharModal() {
@@ -143,10 +177,42 @@
     }
 
     document.getElementById('btnVisualizar').addEventListener('click', visualizar);
+
+    // Gera PDF usando jsPDF
+    document.getElementById('btnPDF').addEventListener('click', () => {
+      if (!ultimoRegistro) return alert("Nenhum registro para gerar PDF.");
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(14);
+      doc.text("Relatório de Frequência", 105, 15, { align: "center" });
+      doc.setFontSize(12);
+      doc.text(`Aluno: ${ultimoRegistro.nome}`, 15, 30);
+      doc.text(`Data: ${dayjs(ultimoRegistro.data).format('DD/MM/YYYY')}`, 15, 38);
+      doc.text(`Tipo: ${ultimoRegistro.tipo_registro}`, 15, 46);
+
+      doc.setFontSize(12);
+      doc.text("Atraso:", 15, 58);
+      doc.text(`Hora: ${ultimoRegistro.hora_atraso || '-'}`, 25, 66);
+      doc.text(`Motivo: ${ultimoRegistro.motivo_atraso || '-'}`, 25, 74);
+      doc.text(`Responsável: ${ultimoRegistro.responsavel_atraso || '-'}`, 25, 82);
+      doc.text(`Documento: ${ultimoRegistro.documento_atraso || '-'}`, 25, 90);
+
+      doc.text("Saída Antecipada:", 15, 102);
+      doc.text(`Hora: ${ultimoRegistro.hora_saida || '-'}`, 25, 110);
+      doc.text(`Motivo: ${ultimoRegistro.motivo_saida || '-'}`, 25, 118);
+      doc.text(`Responsável: ${ultimoRegistro.responsavel_saida || '-'}`, 25, 126);
+      doc.text(`Documento: ${ultimoRegistro.documento_saida || '-'}`, 25, 134);
+
+      doc.text(`Observação: ${ultimoRegistro.observacao || 'Nenhuma registrada'}`, 15, 146);
+
+      doc.save(`frequencia_${ultimoRegistro.nome}_${ultimoRegistro.data}.pdf`);
+    });
+
     carregarSalas();
     carregarMeses();
   </script>
+
 </body>
-        </html>
-
-
+  </html>
+  
