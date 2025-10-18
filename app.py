@@ -1810,6 +1810,20 @@ def gerar_pdf_ocorrencias():
     except Exception as e:
         return jsonify({"error": f"Falha ao gerar PDF: {str(e)}"}), 500
 
+# NOVA ROTA (que o seu frontend está chamando)
+# Se o frontend está enviando o 'id' e o 'nivel' no corpo da requisição POST
+@app.route("/api/salvar_atendimento", methods=["POST"])
+def salvar_atendimento_compat():
+    # O frontend DEVE enviar o ID da ocorrência no corpo da requisição (JSON)
+    data = request.get_json()
+    ocorrencia_id = data.get("id") 
+    
+    if not ocorrencia_id:
+         return jsonify({"error": "ID da ocorrência ausente no corpo da requisição."}), 400
+         
+    # Redireciona a lógica para a função principal, que espera o ID
+    return registrar_atendimento(int(ocorrencia_id))
+
 
 # =========================================================
 # EXECUÇÃO
@@ -1817,3 +1831,4 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
