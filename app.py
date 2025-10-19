@@ -1925,12 +1925,35 @@ def salvar_atendimento():
         logging.exception("Erro salvar_atendimento")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/ocorrencias_por_aluno/<int:aluno_id>')
+def ocorrencias_por_aluno(aluno_id):
+    try:
+        select_query = (
+            "numero, data_hora, descricao, status, "
+            "atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao, "
+            "professor_id(nome), tutor_nome, sala_id(sala), aluno_nome"
+        )
+
+        # Busca todas as ocorrências do aluno no Supabase
+        resp = supabase.table('ocorrencias').select(select_query).eq('aluno_id', aluno_id).execute()
+
+        ocorrencias = resp.data or []
+
+        # Retorna sempre JSON
+        return jsonify(ocorrencias), 200
+
+    except Exception as e:
+        logging.exception(f"Erro ao buscar ocorrências do aluno {aluno_id}")
+        return jsonify({'error': f'Erro ao consultar Supabase: {str(e)}'}), 500
+
+
 # =========================================================
 # EXECUÇÃO
 # =========================================================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
