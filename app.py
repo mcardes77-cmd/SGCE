@@ -792,9 +792,9 @@ def api_get_ocorrencias(ocorrencia_id=None):
 def api_get_vinculacoes_disciplinas(sala_id):
     try:
         sala_id_bigint = int(sala_id)
-        response = supabase.table('vinculos_disciplina_sala').select('fk_disciplina_id').eq('fk_sala_id', sala_id_bigint).execute()
+        response = supabase.table('vinculos_disciplina_sala').select('disciplina_id').eq('sala_id', sala_id_bigint).execute()
         vinculos_raw = handle_supabase_response(response)
-        disciplinas_ids = [v['fk_disciplina_id'] for v in vinculos_raw]
+        disciplinas_ids = [v['disciplina_id'] for v in vinculos_raw]
         return jsonify({"sala_id": sala_id, "disciplinas": disciplinas_ids})
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar vínculos de disciplinas: {e}", "status": 500}), 500
@@ -815,18 +815,18 @@ def api_get_agenda_semanal():
     if not sala_id or not data_referencia:
         return jsonify({"error": "Parâmetros sala_id e data_referencia são obrigatórios.", "status": 400}), 400
     try:
-        response = supabase.table('f_agenda_aulas').select('id, dia_semana, ordem_aula, tema_aula, tipo_aula, fk_disciplina_id, fk_professor_id').eq('fk_sala_id', int(sala_id)).eq('data_referencia', data_referencia).execute()
+        response = supabase.table('f_agenda_aulas').select('id, dia_semana, ordem_aula, tema_aula, tipo_aula, disciplina_id, professor_id').eq('sala_id', int(sala_id)).eq('data_referencia', data_referencia).execute()
         agenda_raw = handle_supabase_response(response)
         agenda = []
         for item in agenda_raw:
             disc_nome = None
             prof_nome = None
-            if item.get('fk_disciplina_id'):
-                dresp = supabase.table('d_disciplinas').select('nome').eq('id', item['fk_disciplina_id']).single().execute()
+            if item.get('disciplina_id'):
+                dresp = supabase.table('d_disciplinas').select('nome').eq('id', item['disciplina_id']).single().execute()
                 ddata = handle_supabase_response(dresp)
                 disc_nome = ddata.get('nome') if isinstance(ddata, dict) else None
-            if item.get('fk_professor_id'):
-                presp = supabase.table('d_funcionarios').select('nome').eq('id', item['fk_professor_id']).single().execute()
+            if item.get('professor_id'):
+                presp = supabase.table('d_funcionarios').select('nome').eq('id', item['professor_id']).single().execute()
                 pdata = handle_supabase_response(presp)
                 prof_nome = pdata.get('nome') if isinstance(pdata, dict) else None
             agenda.append({
@@ -850,7 +850,7 @@ def api_get_guia_aprendizagem():
     if not disciplina_id or not bimestre or not serie:
         return jsonify({"error": "Parâmetros disciplina, bimestre e série são obrigatórios.", "status": 400}), 400
     try:
-        response = supabase.table('f_guia_aprendizagem').select('*').eq('fk_disciplina_id', disciplina_id).eq('bimestre', int(bimestre)).eq('serie', serie).execute()
+        response = supabase.table('f_guia_aprendizagem').select('*').eq('disciplina_id', disciplina_id).eq('bimestre', int(bimestre)).eq('serie', serie).execute()
         guia = handle_supabase_response(response)
         if guia and isinstance(guia, list) and guia[0].get('habilidades_planejadas'):
             try:
@@ -871,18 +871,18 @@ def api_salvar_agenda():
     try:
         registros_a_salvar = []
         for item in registros:
-            disciplina_id = item['fk_disciplina_id']
+            disciplina_id = item['disciplina_id']
             registros_a_salvar.append({
-                "fk_sala_id": int(item['fk_sala_id']),
-                "fk_professor_id": int(item['fk_professor_id']),
+                "sala_id": int(item['sala_id']),
+                "professor_id": int(item['professor_id']),
                 "data_referencia": item['data_referencia'],
                 "dia_semana": item['dia_semana'],
                 "ordem_aula": int(item['ordem_aula']),
-                "fk_disciplina_id": disciplina_id,
+                "disciplina_id": disciplina_id,
                 "tema_aula": item['tema_aula'],
                 "tipo_aula": item['tipo_aula'],
             })
-        response = supabase.table('f_agenda_aulas').upsert(registros_a_salvar, on_conflict='fk_sala_id, data_referencia, dia_semana, ordem_aula').execute()
+        response = supabase.table('f_agenda_aulas').upsert(registros_a_salvar, on_conflict='sala_id, data_referencia, dia_semana, ordem_aula').execute()
         handle_supabase_response(response)
         return jsonify({"message": f"{len(registros_a_salvar)} registros de agenda salvos/atualizados com sucesso!", "status": 200}), 200
     except Exception as e:
@@ -929,7 +929,7 @@ def api_salvar_frequencia_massa():
         
     try:
         # Usa UPSERT (on_conflict na PK) para atualizar se já existir ou inserir se for novo.
-        response = supabase.table('f_frequencia').upsert(registros_a_salvar, on_conflict='fk_aluno_id, data').execute()
+        response = supabase.table('f_frequencia').upsert(registros_a_salvar, on_conflict='aluno_id, data').execute()
         handle_supabase_response(response)
         return jsonify({"message": f"{len(registros_a_salvar)} registros de frequência salvos/atualizados com sucesso!", "status": 201}), 201
     except Exception as e:
@@ -949,7 +949,7 @@ def api_salvar_atraso():
     
     try:
         # 1. Busca o status atual
-        resp = supabase.table('f_frequencia').select('status, id').eq('fk_aluno_id', aluno_id).eq('data', registro_data).maybe_single().execute()
+        resp = supabase.table('f_frequencia').select('status, id').eq('aluno_id', aluno_id).eq('data', registro_data).maybe_single().execute()
         current_status = resp.data['status'] if resp.data else None
         
         # 2. Determina o novo status combinado
@@ -973,7 +973,7 @@ def api_salvar_atraso():
             "status": novo_status
         }
         
-        response = supabase.table('f_frequencia').upsert(registro, on_conflict='fk_aluno_id, data').execute()
+        response = supabase.table('f_frequencia').upsert(registro, on_conflict='aluno_id, data').execute()
         handle_supabase_response(response)
         
         return jsonify({"message": f"Registro de Atraso salvo com sucesso! Status: {novo_status}", "status": 201}), 201
@@ -994,7 +994,7 @@ def api_salvar_saida_antecipada():
 
     try:
         # 1. Busca o status atual
-        resp = supabase.table('f_frequencia').select('status, id').eq('fk_aluno_id', aluno_id).eq('data', registro_data).maybe_single().execute()
+        resp = supabase.table('f_frequencia').select('status, id').eq('aluno_id', aluno_id).eq('data', registro_data).maybe_single().execute()
         current_status = resp.data['status'] if resp.data else None
         
         # 2. Determina o novo status combinado
@@ -1018,7 +1018,7 @@ def api_salvar_saida_antecipada():
             "status": novo_status
         }
         
-        response = supabase.table('f_frequencia').upsert(registro, on_conflict='fk_aluno_id, data').execute()
+        response = supabase.table('f_frequencia').upsert(registro, on_conflict='aluno_id, data').execute()
         handle_supabase_response(response)
         
         return jsonify({"message": f"Registro de Saída Antecipada salvo com sucesso! Status: {novo_status}", "status": 201}), 201
@@ -1053,13 +1053,13 @@ def api_relatorio_frequencia_detalhada():
             return jsonify({"error": "Nenhum aluno encontrado nesta sala."}), 404
 
         # 2. Busca todos os registros de frequência para esses alunos no período
-        resp_frequencia = supabase.table('f_frequencia').select('*').in_('fk_aluno_id', aluno_ids).gte('data', data_inicio).lte('data', data_fim).execute()
+        resp_frequencia = supabase.table('f_frequencia').select('*').in_('aluno_id', aluno_ids).gte('data', data_inicio).lte('data', data_fim).execute()
         frequencia_raw = handle_supabase_response(resp_frequencia)
 
         # Mapeia registros por (aluno_id, data)
         frequencia_map = {}
         for reg in frequencia_raw:
-            key = (reg['fk_aluno_id'], reg['data'])
+            key = (reg['aluno_id'], reg['data'])
             frequencia_map[key] = reg
 
         # 3. Monta a matriz de relatório
@@ -1185,13 +1185,13 @@ def api_get_inventario():
 def api_get_agendamentos_pendentes(professor_id):
     try:
         professor_id_bigint = int(professor_id)
-        response = supabase.table('reservas_equipamentos').select('id, fk_sala_id, data_uso, periodo_uso, status, fk_professor_id').eq('fk_professor_id', professor_id_bigint).neq('status', 'FINALIZADO').execute()
+        response = supabase.table('reservas_equipamentos').select('id, sala_id, data_uso, periodo_uso, status, professor_id').eq('professor_id', professor_id_bigint).neq('status', 'FINALIZADO').execute()
         agendamentos_raw = handle_supabase_response(response)
         agendamentos = []
         for ag in agendamentos_raw:
             agendamentos.append({
                 "id": str(ag['id']),
-                "fk_sala_id": str(ag.get('fk_sala_id')),
+                "sala_id": str(ag.get('sala_id')),
                 "data_uso": str(ag.get('data_uso')),
                 "periodo_uso": ag.get('periodo_uso'),
                 "status": ag.get('status')
@@ -1353,10 +1353,10 @@ def api_vincular_disciplina_sala():
     try:
         sala_id_bigint = int(sala_id)
         # Limpa todos os vínculos existentes para esta sala
-        supabase.table('vinculos_disciplina_sala').delete().eq('fk_sala_id', sala_id_bigint).execute()
+        supabase.table('vinculos_disciplina_sala').delete().eq('sala_id', sala_id_bigint).execute()
         if disciplinas_ids:
             # Insere os novos vínculos
-            registros = [{"fk_sala_id": sala_id_bigint, "fk_disciplina_id": d_id} for d_id in disciplinas_ids]
+            registros = [{"sala_id": sala_id_bigint, "disciplina_id": d_id} for d_id in disciplinas_ids]
             supabase.table('vinculos_disciplina_sala').insert(registros).execute()
         return jsonify({"message": f"Vínculos da sala {sala_id} atualizados com sucesso.", "status": 200}), 200
     except Exception as e:
@@ -1444,8 +1444,8 @@ def api_finalizar_retirada_equipamento():
             registros = []
             for v in vinculacoes:
                 registros.append({
-                    "fk_agendamento_id": int(agendamento_id),
-                    "fk_aluno_id": int(v['aluno_id']),
+                    "agendamento_id": int(agendamento_id),
+                    "aluno_id": int(v['aluno_id']),
                     "equipamento_id": v['equipamento_id'],
                     "data_retirada": v['data_retirada']
                 })
@@ -1851,14 +1851,14 @@ def api_frequencia():
         fim = f"{ano_int}-{mes_int:02d}-{monthrange(ano_int, mes_int)[1]:02d}"
 
         resp_freq = supabase.table('f_frequencia').select('*')\
-            .in_('fk_aluno_id', aluno_ids)\
-            .gte('data', inicio).lte('data', fim).order('fk_aluno_id').execute()
+            .in_('aluno_id', aluno_ids)\
+            .gte('data', inicio).lte('data', fim).order('aluno_id').execute()
         freq_raw = handle_supabase_response(resp_freq)
 
         # 3) monta mapa (aluno_id, data) -> registro
         freq_map = {}
         for r in freq_raw:
-            key = (r.get('fk_aluno_id'), r.get('data'))
+            key = (r.get('aluno_id'), r.get('data'))
             freq_map[key] = r
 
         resultado = []
@@ -1889,7 +1889,7 @@ def api_frequencia_status():
         data = request.args.get('data')
         if not sala_id or not data:
             return jsonify({"error":"sala_id e data obrigatórios"}), 400
-        resp = supabase.table('f_frequencia').select('id').eq('fk_sala_id', int(sala_id)).eq('data', data).limit(1).execute()
+        resp = supabase.table('f_frequencia').select('id').eq('sala_id', int(sala_id)).eq('data', data).limit(1).execute()
         registrada = bool(handle_supabase_response(resp))
         return jsonify({"registrada": registrada}), 200
     except Exception as e:
@@ -1905,7 +1905,7 @@ def api_frequencia_detalhes():
         data = request.args.get('data')
         if not aluno_id or not data:
             return jsonify({"error":"aluno_id e data obrigatórios"}), 400
-        resp = supabase.table('f_frequencia').select('*').eq('fk_aluno_id', int(aluno_id)).eq('data', data).maybe_single().execute()
+        resp = supabase.table('f_frequencia').select('*').eq('aluno_id', int(aluno_id)).eq('data', data).maybe_single().execute()
         if not resp.data:
             return jsonify({"error":"Registro não encontrado"}), 404
         return jsonify(resp.data), 200
@@ -1918,7 +1918,7 @@ def api_frequencia_detalhes():
 @app.route('/api/ficha_tutoria/<int:aluno_id>', methods=['GET'])
 def get_ficha_tutoria(aluno_id):
     try:
-        resp = supabase.table('tutoria_geral').select('*').eq('fk_aluno_id', aluno_id).order('data_registro', desc=True).limit(1).maybe_single().execute()
+        resp = supabase.table('tutoria_geral').select('*').eq('aluno_id', aluno_id).order('data_registro', desc=True).limit(1).maybe_single().execute()
         if not resp.data:
             return jsonify({}), 200
         return jsonify(resp.data), 200
@@ -1935,8 +1935,8 @@ def api_agendar_tutoria():
         return jsonify({"error":"Dados de agendamento incompletos"}), 400
     try:
         registro = {
-            "fk_tutor_id": int(data['tutor_id']),
-            "fk_aluno_id": int(data['aluno_id']),
+            "tutor_id": int(data['tutor_id']),
+            "aluno_id": int(data['aluno_id']),
             "data_agendamento": data['data_agendamento'],
             "hora_agendamento": data['hora_agendamento'],
             "status": data.get('status', 'AGENDADO'),
@@ -1998,7 +1998,6 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
 
 
 
