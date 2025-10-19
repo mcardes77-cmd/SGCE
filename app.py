@@ -742,57 +742,6 @@ def api_get_guia_aprendizagem():
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar Guia de Aprendizagem: {e}", "status": 500}), 500
 
-# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
-@app.route("/api/frequencia", methods=["GET"])
-def get_frequencia():
-    sala_id = request.args.get("sala_id")
-    mes = int(request.args.get("mes"))
-
-    try:
-        # Define o intervalo do mês
-        data_inicio = f"2025-{mes:02d}-01"
-        data_fim = f"2025-{mes + 1:02d}-01" if mes < 12 else "2026-01-01"
-
-        # Busca dados no Supabase
-        response = supabase.table("f_frequencia").select(
-            "fk_aluno_id, fk_sala_id, status, created_at, hora_atraso, motivo_atraso, responsavel_atraso, documento_atraso, hora_saida, motivo_saida, responsavel_saida, documento_saida"
-        ).eq("fk_sala_id", sala_id).gte("created_at", data_inicio).lt("created_at", data_fim).execute()
-
-        frequencias = response.data
-
-        return jsonify(frequencias)
-    except Exception as e:
-        print("Erro ao buscar frequência:", e)
-        return jsonify({"error": str(e)}), 500
-
-# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
-@app.route("/api/detalhe_frequencia")
-def detalhe_frequencia():
-    """Busca detalhes de frequência - Versão simplificada (data_registro)."""
-    aluno_id = request.args.get("aluno_id")
-    data = request.args.get("data")
-    mes = request.args.get("mes")
-    sala_id = request.args.get("sala_id")
-    if not all([aluno_id, data, mes, sala_id]):
-        return jsonify({"erro":"Parâmetros obrigatórios ausentes"}),400
-
-    try:
-        # Buscar registro específico
-        res = supabase.table("f_frequencia") \
-            .select("*") \
-            .eq("aluno_id", aluno_id) \
-            .eq("data_registro", data) \
-            .execute()
-        
-        if not res.data:
-            return jsonify({"erro":"Registro não encontrado"}),404
-        
-        registro = res.data[0]
-        return jsonify(registro)
-    except Exception as e:
-        logging.error(f"Erro em detalhe_frequencia: {e}")
-        return jsonify({"erro": f"Erro interno: {e}"}), 500
-
 @app.route("/api/registrar_atendimento/<int:ocorrencia_id>", methods=["POST"])
 def registrar_atendimento(ocorrencia_id):
     try:
@@ -1911,28 +1860,99 @@ def get_ficha_tutoria(aluno_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ========================
-# API: LISTAR SALAS
-# ========================
+# API: SALAS
+# =========================
 @app.route("/api/salas")
 def api_salas():
     try:
-        response = supabase.table("f_salas").select("id, nome, descricao").execute()
-        salas = response.data
+        response = supabase.table("d_salas").select("*").execute()
+        if response.error:
+            return jsonify({"error": response.error.message}), 500
+        return jsonify(response.data or [])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-        # Garantir formato correto
-        lista = []
-        for s in salas:
-            lista.append({
-                "id": s.get("id"),
-                "nome": s.get("nome") or s.get("descricao") or f"Sala {s.get('id')}"
+# =========================
+# API: FREQUÊNCIA MENSAL
+# =========================
+@app.route("/api/frequencia")
+def api_frequencia():
+    sala_id = request.args.get("sala")
+    mes = request.args.get("mes")
+
+    if not sala_id or not mes:
+        return jsonify({"error": "Parâmetros 'sala' e 'mes' são obrigatórios"}), 400
+
+    try:
+        mes_int = int(mes)
+        ano = 2025  # ou datetime.now().year se preferir dinâmico
+    except:
+        return jsonify({"error": "Mês inválido"}), 400
+
+    try:
+        # Buscar alunos da sala
+        resp_alunos = supabase.table("d_alunos").select("*").eq("sala_id", sala_id).execute()
+        if resp_alunos.error:
+            return jsonify({"error": resp_alunos.error.message}), 500
+        alunos = resp_alunos.data or []
+
+        # Buscar frequências
+        resp_freq = supabase.table("f_frequencia").select("*").execute()
+        if resp_freq.error:
+            return jsonify({"error": resp_freq.error.message}), 500
+        freq_data = resp_freq.data or []
+
+        resultado = []
+        for aluno in alunos:
+            freq_aluno = {}
+            for registro in freq_data:
+                if registro["aluno_id"] == aluno["id"]:
+                    # Considera apenas registros do mês selecionado
+                    data_registro = registro.get("data_registro")
+                    if not data_registro:
+                        continue
+                    dt = datetime.fromisoformat(data_registro)
+                    if dt.month != mes_int or dt.year != ano:
+                        continue
+                    freq_aluno[dt.strftime("%Y-%m-%d")] = registro.get("status", "F")  # exemplo
+            resultado.append({
+                "id": aluno["id"],
+                "nome": aluno.get("nome", ""),
+                "frequencia": freq_aluno
             })
 
-        return jsonify(lista)
-
+        return jsonify(resultado)
     except Exception as e:
-        print("Erro ao buscar salas:", e)
-        return jsonify({"error": "Erro ao buscar salas"}), 500
+        return jsonify({"error": str(e)}), 500
+
+# =========================
+# API: DETALHE FREQUÊNCIA
+# =========================
+@app.route("/api/detalhe_frequencia")
+def api_detalhe_frequencia():
+    aluno_id = request.args.get("aluno_id")
+    data = request.args.get("data")
+    mes = request.args.get("mes")
+    sala_id = request.args.get("sala_id")
+
+    if not all([aluno_id, data, mes, sala_id]):
+        return jsonify({"erro": "Parâmetros obrigatórios ausentes"}), 400
+
+    try:
+        resp = supabase.table("f_frequencia")\
+            .select("*")\
+            .eq("aluno_id", aluno_id)\
+            .eq("data_registro", data)\
+            .execute()
+        if resp.error:
+            return jsonify({"erro": resp.error.message}), 500
+        registros = resp.data or []
+        if not registros:
+            return jsonify({"erro": "Nenhum registro encontrado"}), 404
+        return jsonify(registros[0])
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
                 
 # =========================================================
 # EXECUÇÃO
