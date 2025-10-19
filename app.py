@@ -1922,11 +1922,34 @@ def get_ficha_tutoria(aluno_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ========================
+# API: LISTAR SALAS
+# ========================
+@app.route("/api/salas")
+def api_salas():
+    try:
+        response = supabase.table("f_salas").select("id, nome, descricao").execute()
+        salas = response.data
 
+        # Garantir formato correto
+        lista = []
+        for s in salas:
+            lista.append({
+                "id": s.get("id"),
+                "nome": s.get("nome") or s.get("descricao") or f"Sala {s.get('id')}"
+            })
+
+        return jsonify(lista)
+
+    except Exception as e:
+        print("Erro ao buscar salas:", e)
+        return jsonify({"error": "Erro ao buscar salas"}), 500
+                
 # =========================================================
 # EXECUÇÃO
 # =========================================================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
