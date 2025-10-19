@@ -49,11 +49,12 @@ th { background-color: #1F2937; }
   </div>
 </main>
 
+<!-- MODAL DETALHES -->
 <div id="modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
   <div class="modal-bg absolute inset-0"></div>
   <div class="bg-gray-800 max-w-lg w-full p-6 rounded-xl z-60 relative shadow-lg border border-gray-700">
     <button onclick="fecharModal()" class="absolute top-2 right-3 text-gray-400 hover:text-red-600">✕</button>
-    <h2 class="text-lg font-semibold mb-2 text-yellow-400">Detalhes do Registro</h2>
+    <h2 class="text-lg font-semibold mb-2 text-yellow-400">Detalhes da Frequência</h2>
     <div id="modalContent" class="text-sm text-gray-300 space-y-1"></div>
     <button id="btnPDF" class="mt-4 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 w-full">Gerar PDF</button>
   </div>
@@ -72,34 +73,22 @@ const feriadosFixos = ["2025-10-27","2025-11-20"];
 async function carregarSalas() {
   try {
     const resp = await fetch("/api/salas");
-    if (!resp.ok) throw new Error("Erro ao buscar salas");
     const salas = await resp.json();
-
     const select = document.getElementById("salaSelect");
     select.innerHTML = '<option value="">Selecione...</option>';
-
-    if (Array.isArray(salas)) {
-      salas.forEach(s => {
-        const opt = document.createElement("option");
-        opt.value = s.id;
-        // 🔹 CORRIGIDO: usar 's.sala' em vez de 's.nome'
-        opt.textContent = s.sala || "Sem nome";
-        select.appendChild(opt);
-      });
-    } else {
-      throw new Error("Formato inesperado de dados de sala");
-    }
+    salas.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.sala || "Sem nome";
+      select.appendChild(opt);
+    });
   } catch (err) {
-    console.error("Erro ao carregar salas:", err);
-    alert("Erro ao carregar salas: " + err.message);
+    console.error(err);
   }
 }
 
 function carregarMeses() {
-  const meses = [
-    "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
-    "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
-  ];
+  const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   const sel = document.getElementById("mesSelect");
   sel.innerHTML = '<option value="">Selecione...</option>';
   meses.forEach((m,i) => {
@@ -118,16 +107,10 @@ async function visualizar() {
 
   try {
     const resp = await fetch(`/api/frequencia?sala=${sala}&mes=${mes}`);
-    if (!resp.ok) {
-      const error = await resp.json();
-      throw new Error(error.error || "Erro desconhecido");
-    }
     const dados = await resp.json();
     montarTabela(dados, parseInt(mes));
   } catch (err) {
     console.error(err);
-    document.getElementById("tabelaContainer").innerHTML =
-      '<div class="text-center p-4 text-red-400">Erro ao carregar os dados. Verifique o console.</div>';
   }
 }
 
@@ -135,7 +118,7 @@ function montarTabela(dados, mes) {
   const container = document.getElementById("tabelaContainer");
   container.innerHTML = '';
   if (!Array.isArray(dados) || dados.length === 0) {
-    container.innerHTML = '<div class="text-center p-4 text-gray-400">Nenhum dado de frequência encontrado.</div>';
+    container.innerHTML = '<div class="text-center p-4 text-gray-400">Nenhum dado encontrado.</div>';
     return;
   }
 
@@ -159,7 +142,7 @@ function montarTabela(dados, mes) {
       const freq = aluno.frequencia?.[dataKey] || "";
       let cor = "text-gray-400";
       const click = ["PA","PS","PSA"].includes(freq)
-        ? `onclick="abrirModalDetalhe('${aluno.id}','${dataKey}','${mes}')"`
+        ? `onclick="abrirModalDetalhe('${aluno.id}','${dataKey}')"`
         : "";
       if (freq === "P") cor = "text-green-500 font-bold";
       if (freq === "F") cor = "text-red-500 font-bold";
@@ -173,33 +156,30 @@ function montarTabela(dados, mes) {
   container.innerHTML = html;
 }
 
-async function abrirModalDetalhe(alunoId, data, mes) {
+async function abrirModalDetalhe(alunoId, data) {
   document.getElementById("modal").classList.remove("hidden");
   const modalContent = document.getElementById("modalContent");
-  modalContent.innerHTML = "Carregando detalhes...";
+  modalContent.innerHTML = "Carregando...";
 
   try {
-    if (!salaAtual) throw new Error("ID da sala ausente.");
-    const resp = await fetch(`/api/detalhe_frequencia?aluno_id=${alunoId}&data=${data}&mes=${mes}&sala_id=${salaAtual}`);
-    if (!resp.ok) {
-      const err = await resp.json();
-      modalContent.innerHTML = err.erro || "Erro ao carregar detalhes";
-      return;
-    }
+    const resp = await fetch(`/api/detalhe_frequencia?aluno_id=${alunoId}&data=${data}&sala_id=${salaAtual}`);
     const info = await resp.json();
     ultimoRegistro = info;
 
     modalContent.innerHTML = `
       <p><strong>Aluno:</strong> ${info.nome}</p>
-      <p><strong>Data:</strong> ${dayjs(info.data_registro).format('DD/MM/YYYY')}</p>
-      <p><strong>Tipo:</strong> ${info.tipo_registro || '-'}</p>
-      <hr class="my-2">
+      <p><strong>Data:</strong> ${dayjs(info.data).format('DD/MM/YYYY')}</p>
       <p><strong>Status:</strong> ${info.status || '-'}</p>
-      <p><strong>Observação:</strong> ${info.observacao || 'Nenhuma registrada'}</p>
+      ${info.hora_atraso ? `<p><strong>Hora Atraso:</strong> ${info.hora_atraso}</p>` : ""}
+      ${info.motivo_atraso ? `<p><strong>Motivo:</strong> ${info.motivo_atraso}</p>` : ""}
+      ${info.responsavel_atraso ? `<p><strong>Responsável:</strong> ${info.responsavel_atraso}</p>` : ""}
+      ${info.hora_saida ? `<p><strong>Hora Saída:</strong> ${info.hora_saida}</p>` : ""}
+      ${info.motivo_saida ? `<p><strong>Motivo Saída:</strong> ${info.motivo_saida}</p>` : ""}
+      ${info.responsavel_saida ? `<p><strong>Responsável Saída:</strong> ${info.responsavel_saida}</p>` : ""}
     `;
   } catch (err) {
     console.error(err);
-    modalContent.innerHTML = `<p class="text-red-600">Erro ao carregar detalhes: ${err.message}</p>`;
+    modalContent.innerHTML = `<p class="text-red-500">Erro ao carregar detalhes.</p>`;
   }
 }
 
@@ -216,9 +196,11 @@ document.getElementById("btnPDF").addEventListener("click", () => {
   doc.text("Relatório de Frequência", 105, 15, { align: "center" });
   doc.setFontSize(12);
   doc.text(`Aluno: ${ultimoRegistro.nome}`, 15, 30);
-  doc.text(`Data: ${dayjs(ultimoRegistro.data_registro).format('DD/MM/YYYY')}`, 15, 38);
-  doc.text(`Tipo: ${ultimoRegistro.tipo_registro || '-'}`, 15, 46);
-  doc.save(`frequencia_${ultimoRegistro.nome}_${ultimoRegistro.data_registro}.pdf`);
+  doc.text(`Data: ${dayjs(ultimoRegistro.data).format('DD/MM/YYYY')}`, 15, 38);
+  doc.text(`Status: ${ultimoRegistro.status || '-'}`, 15, 46);
+  if (ultimoRegistro.hora_atraso) doc.text(`Hora Atraso: ${ultimoRegistro.hora_atraso}`, 15, 54);
+  if (ultimoRegistro.hora_saida) doc.text(`Hora Saída: ${ultimoRegistro.hora_saida}`, 15, 62);
+  doc.save(`frequencia_${ultimoRegistro.nome}_${ultimoRegistro.data}.pdf`);
 });
 
 carregarSalas();
@@ -227,4 +209,3 @@ carregarMeses();
 
 </body>
 </html>
-
