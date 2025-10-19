@@ -420,7 +420,7 @@ def api_get_funcionarios():
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar funcionários: {e}", "status": 500}), 500
 
-@@app.route("/api/registrar_atendimento/<int:ocorrencia_id>", methods=["POST"])
+@app.route("/api/registrar_atendimento/<int:ocorrencia_id>", methods=["POST"])
 def registrar_atendimento(ocorrencia_id):
     """Rota para registrar atendimento de ocorrência (Tutor/Coordenação/Gestão)."""
     try:
@@ -1971,5 +1971,6 @@ def salvar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
