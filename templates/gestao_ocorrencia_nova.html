@@ -1,380 +1,372 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nova Ocorrência - Registro</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script>
-    // Configuração do tema escuro
-    tailwind.config = {
-        theme: {
-            extend: {
-                colors: {
-                    'dark-primary': '#0F172A',
-                    'dark-secondary': '#1E293B',
-                    'accent': '#10B981',
-                    'text-light': '#F8FAFC',
-                    'input-bg': '#374151',
-                    'danger': '#DC2626',
-                },
-                fontFamily: {
-                    sans: ['Inter', 'sans-serif'],
-                },
-            }
-        }
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Ocorrência - Registro</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+    // Configuração do tema escuro
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    'dark-primary': '#0F172A',
+                    'dark-secondary': '#1E293B',
+                    'accent': '#10B981',
+                    'text-light': '#F8FAFC',
+                    'input-bg': '#374151',
+                    'danger': '#DC2626',
+                },
+                fontFamily: {
+                    sans: ['Inter', 'sans-serif'],
+                },
+            }
+        }
+    }
 
-    // Variáveis globais para armazenar os dados de lookup após o fetch
-    let funcionariosDataGlobal = [];
-    let alunosDataGlobal = [];
+    // Variáveis globais para armazenar os dados de lookup após o fetch
+    let funcionariosDataGlobal = [];
+    let alunosDataGlobal = [];
 
-    document.addEventListener('DOMContentLoaded', () => {
-        carregarDadosDeLookup();
-    });
+    document.addEventListener('DOMContentLoaded', () => {
+        carregarDadosDeLookup();
+    });
 
-    // Funções Auxiliares
-    function mostrarMensagem(texto, tipo) {
-        const msgElement = document.getElementById('mensagem-status');
-        msgElement.textContent = texto;
+    // Funções Auxiliares
+    function mostrarMensagem(texto, tipo) {
+        const msgElement = document.getElementById('mensagem-status');
+        msgElement.textContent = texto;
 
-        // Garante que todas as classes de cor sejam removidas antes de aplicar a nova
-        msgElement.classList.remove('hidden', 'bg-accent', 'bg-danger', 'bg-dark-secondary');
+        // Garante que todas as classes de cor sejam removidas antes de aplicar a nova
+        msgElement.classList.remove('hidden', 'bg-accent', 'bg-danger', 'bg-dark-secondary');
 
-        if (tipo === 'success') {
-            msgElement.classList.add('bg-accent');
-        } else if (tipo === 'danger') {
-            msgElement.classList.add('bg-danger');
-        } else if (tipo === 'warning' || tipo === 'info') {
-            // Usando dark-secondary para mensagens informativas/loading
-            msgElement.classList.add('bg-dark-secondary', 'text-yellow-400');
-        } else {
-             msgElement.classList.add('bg-dark-secondary'); 
-        }
+        if (tipo === 'success') {
+            msgElement.classList.add('bg-accent');
+        } else if (tipo === 'danger') {
+            msgElement.classList.add('bg-danger');
+        } else if (tipo === 'warning' || tipo === 'info') {
+            // Usando dark-secondary para mensagens informativas/loading
+            msgElement.classList.add('bg-dark-secondary', 'text-yellow-400');
+        } else {
+             msgElement.classList.add('bg-dark-secondary'); 
+        }
 
-        msgElement.classList.remove('hidden');
-        setTimeout(() => {
-            msgElement.classList.add('hidden');
-        }, 5000);
-    }
+        msgElement.classList.remove('hidden');
+        setTimeout(() => {
+            msgElement.classList.add('hidden');
+        }, 5000);
+    }
 
-    // LÓGICA DE CARREGAMENTO DE DADOS (USANDO ROTAS FLASK)
-    async function carregarDadosDeLookup() {
-        mostrarMensagem('Carregando dados de professores e salas...', 'info');
+    // LÓGICA DE CARREGAMENTO DE DADOS (USANDO ROTAS FLASK)
+    async function carregarDadosDeLookup() {
+        mostrarMensagem('Carregando dados de professores e salas...', 'info');
 
-        try {
-            // 1. Fetch de Professores/Funcionários
-            const responseProfs = await fetch('/api/funcionarios');
-            if (!responseProfs.ok) throw new Error("Falha ao carregar Professores.");
-            funcionariosDataGlobal = await responseProfs.json();
+        try {
+            // 1. Fetch de Professores/Funcionários
+            const responseProfs = await fetch('/api/funcionarios');
+            if (!responseProfs.ok) throw new Error("Falha ao carregar Professores.");
+            funcionariosDataGlobal = await responseProfs.json();
 
-            // 2. Fetch de Salas
-            const responseSalas = await fetch('/api/salas');
-            
-            if (!responseSalas.ok) {
-                const errorText = await responseSalas.text(); 
-                throw new Error("Falha ao carregar Salas. Status: " + responseSalas.status + ". Detalhe: " + errorText.substring(0, 150) + "..."); 
-            }
-            
-            const salas = await responseSalas.json();
-            
-            // Preenche o HTML
-            preencherOpcoes(funcionariosDataGlobal, salas);
-            
-            // Adiciona Listeners
-            document.getElementById('sala').addEventListener('change', atualizarAlunos);
-            document.getElementById('aluno').addEventListener('change', preencherTutor);
-            
-            mostrarMensagem('Dados carregados com sucesso!', 'success');
+            // 2. Fetch de Salas
+            const responseSalas = await fetch('/api/salas');
+            
+            if (!responseSalas.ok) {
+                const errorText = await responseSalas.text(); 
+                throw new Error("Falha ao carregar Salas. Status: " + responseSalas.status + ". Detalhe: " + errorText.substring(0, 150) + "..."); 
+            }
+            
+            const salas = await responseSalas.json();
+            
+            // Preenche o HTML
+            preencherOpcoes(funcionariosDataGlobal, salas);
+            
+            // Adiciona Listeners
+            document.getElementById('sala').addEventListener('change', atualizarAlunos);
+            document.getElementById('aluno').addEventListener('change', preencherTutor);
+            
+            mostrarMensagem('Dados carregados com sucesso!', 'success');
 
-        } catch (error) {
-            console.error("Erro no carregamento de Lookup:", error.message);
-            mostrarMensagem('Erro ao carregar dados de lookup: ' + error.message, 'danger');
-        }
-    }
+        } catch (error) {
+            console.error("Erro no carregamento de Lookup:", error.message);
+            mostrarMensagem('Erro ao carregar dados de lookup: ' + error.message, 'danger');
+        }
+    }
 
-    // Lógica de preenchimento (Adaptada)
-    function preencherOpcoes(professores, salas) {
-        // 1. Preencher Professor Responsável
-        const selectProfResp = document.getElementById('prof-responsavel');
-        selectProfResp.innerHTML = '<option value="" disabled selected>Selecione o Prof./Func.</option>';
-        professores.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(prof => {
-            selectProfResp.insertAdjacentHTML('beforeend', `<option value="${prof.id}">${prof.nome}</option>`);
-        });
-        
-        // 2. Preencher Salas 
-        const selectSala = document.getElementById('sala');
-        selectSala.innerHTML = '<option value="" disabled selected>Selecione a Sala</option>';
-        
-        salas.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(sala => {
-            if (sala.id && sala.nome) {
-                selectSala.insertAdjacentHTML('beforeend', `<option value="${sala.id}">${sala.nome}</option>`);
-            }
-        });
-        
-        atualizarAlunos();
-    }
+    // Lógica de preenchimento (Adaptada)
+    function preencherOpcoes(professores, salas) {
+        // 1. Preencher Professor Responsável
+        const selectProfResp = document.getElementById('prof-responsavel');
+        selectProfResp.innerHTML = '<option value="" disabled selected>Selecione o Prof./Func.</option>';
+        professores.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(prof => {
+            selectProfResp.insertAdjacentHTML('beforeend', `<option value="${prof.id}">${prof.nome}</option>`);
+        });
+        
+        // 2. Preencher Salas 
+        const selectSala = document.getElementById('sala');
+        selectSala.innerHTML = '<option value="" disabled selected>Selecione a Sala</option>';
+        
+        salas.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(sala => {
+            if (sala.id && sala.nome) {
+                selectSala.insertAdjacentHTML('beforeend', `<option value="${sala.id}">${sala.nome}</option>`);
+            }
+        });
+        
+        atualizarAlunos();
+    }
 
-    async function atualizarAlunos() {
-        const selectedSalaId = document.getElementById('sala').value;
-        const selectAluno = document.getElementById('aluno');
-        selectAluno.innerHTML = '<option value="" disabled selected>Selecione o Aluno</option>';
-        document.getElementById('tutor').value = '';
-        selectAluno.disabled = true;
+    async function atualizarAlunos() {
+        const selectedSalaId = document.getElementById('sala').value;
+        const selectAluno = document.getElementById('aluno');
+        selectAluno.innerHTML = '<option value="" disabled selected>Selecione o Aluno</option>';
+        document.getElementById('tutor').value = '';
+        selectAluno.disabled = true;
 
-        if (selectedSalaId) {
-            mostrarMensagem('Carregando alunos da sala...', 'info');
+        if (selectedSalaId) {
+            mostrarMensagem('Carregando alunos da sala...', 'info');
 
-            try {
-                const response = await fetch(`/api/alunos_por_sala/${selectedSalaId}`);
-                if (!response.ok) throw new Error("Falha ao carregar alunos.");
-                alunosDataGlobal = await response.json(); // Array de {id, nome, tutor_id, tutor_nome}
-                
-                alunosDataGlobal.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(aluno => {
-                    const option = document.createElement('option');
-                    option.value = aluno.id; 
-                    option.setAttribute('data-tutor', aluno.tutor_nome || 'Tutor Não Definido');
-                    option.textContent = aluno.nome;
-                    selectAluno.appendChild(option);
-                });
-                
-                selectAluno.disabled = false;
-                mostrarMensagem('', 'success'); 
-                
-            } catch (error) {
-                console.error("Erro ao carregar alunos:", error.message);
-                mostrarMensagem('Erro ao carregar alunos da sala.', 'danger');
-            }
-        }
-    }
+            try {
+                const response = await fetch(`/api/alunos_por_sala/${selectedSalaId}`);
+                if (!response.ok) throw new Error("Falha ao carregar alunos.");
+                alunosDataGlobal = await response.json(); // Array de {id, nome, tutor_id, tutor_nome}
+                
+                alunosDataGlobal.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(aluno => {
+                    const option = document.createElement('option');
+                    option.value = aluno.id; 
+                    option.setAttribute('data-tutor', aluno.tutor_nome || 'Tutor Não Definido');
+                    option.textContent = aluno.nome;
+                    selectAluno.appendChild(option);
+                });
+                
+                selectAluno.disabled = false;
+                mostrarMensagem('', 'success'); 
+                
+            } catch (error) {
+                console.error("Erro ao carregar alunos:", error.message);
+                mostrarMensagem('Erro ao carregar alunos da sala.', 'danger');
+            }
+        }
+    }
 
-    function preencherTutor() {
-        const selectAluno = document.getElementById('aluno');
-        const selectedOption = selectAluno.options[selectAluno.selectedIndex];
-        const inputTutor = document.getElementById('tutor');
+    function preencherTutor() {
+        const selectAluno = document.getElementById('aluno');
+        const selectedOption = selectAluno.options[selectAluno.selectedIndex];
+        const inputTutor = document.getElementById('tutor');
 
-        if (selectedOption && selectedOption.value !== "") {
-            const tutorNome = selectedOption.getAttribute('data-tutor') || 'Tutor Não Definido';
-            inputTutor.value = tutorNome;
-        } else {
-            inputTutor.value = '';
-        }
-    }
+        if (selectedOption && selectedOption.value !== "") {
+            const tutorNome = selectedOption.getAttribute('data-tutor') || 'Tutor Não Definido';
+            inputTutor.value = tutorNome;
+        } else {
+            inputTutor.value = '';
+        }
+    }
 
-    // LÓGICA DE SUBMISSÃO (CREATE) - CORRIGIDA
-    async function submeterOcorrencia(event) {
-        event.preventDefault();
-        
-        const selectedProfId = document.getElementById('prof-responsavel').value;
-        const selectedSalaId = document.getElementById('sala').value;
-        const selectedAlunoId = document.getElementById('aluno').value;
+    // LÓGICA DE SUBMISSÃO (CREATE) - CORRIGIDA E COM REDIRECIONAMENTO
+    async function submeterOcorrencia(event) {
+        event.preventDefault();
+        
+        const selectedProfId = document.getElementById('prof-responsavel').value;
+        const selectedSalaId = document.getElementById('sala').value;
+        const selectedAlunoId = document.getElementById('aluno').value;
 
-        const aluno = alunosDataGlobal.find(a => String(a.id) === selectedAlunoId) || {};
-        
-        const rawData = {
-            prof_id: selectedProfId, 
-            sala_id: selectedSalaId, 
-            aluno_id: selectedAlunoId, 
-            
-            descricao: document.getElementById('descricao-ocorrencia').value,
-            atendimento_professor: document.getElementById('atendimento-professor').value,
-            
-            solicitar_tutor: document.getElementById('solicitar-tutor').checked,
-            solicitar_coordenacao: document.getElementById('solicitar-coordenacao').checked,
-            solicitar_gestao: document.getElementById('solicitar-gestao').checked,
-            
-            aluno_nome: aluno.nome || 'N/A',
-            tutor_nome: aluno.tutor_nome || 'N/A',
-        };
-        
-        // Validação robusta (verificando se os campos têm valor)
-        if (!rawData.prof_id || !rawData.sala_id || !rawData.aluno_id || !rawData.descricao || !rawData.atendimento_professor) {
-            mostrarMensagem('Por favor, preencha todos os campos obrigatórios (marcados com *) antes de registrar a ocorrência.', 'danger');
-            return;
-        }
-        
-        mostrarMensagem('Registrando ocorrência...', 'warning');
+        const aluno = alunosDataGlobal.find(a => String(a.id) === selectedAlunoId) || {};
+        
+        const rawData = {
+            prof_id: selectedProfId, 
+            sala_id: selectedSalaId, 
+            aluno_id: selectedAlunoId, 
+            
+            descricao: document.getElementById('descricao-ocorrencia').value,
+            atendimento_professor: document.getElementById('atendimento-professor').value,
+            
+            solicitar_tutor: document.getElementById('solicitar-tutor').checked,
+            solicitar_coordenacao: document.getElementById('solicitar-coordenacao').checked,
+            solicitar_gestao: document.getElementById('solicitar-gestao').checked,
+            
+            aluno_nome: aluno.nome || 'N/A',
+            tutor_nome: aluno.tutor_nome || 'N/A',
+        };
+        
+        // Validação robusta (verificando se os campos têm valor)
+        if (!rawData.prof_id || !rawData.sala_id || !rawData.aluno_id || !rawData.descricao || !rawData.atendimento_professor) {
+            mostrarMensagem('Por favor, preencha todos os campos obrigatórios (marcados com *) antes de registrar a ocorrência.', 'danger');
+            return;
+        }
+        
+        mostrarMensagem('Registrando ocorrência...', 'warning');
 
-        try {
-            const response = await fetch('/api/registrar_ocorrencia', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(rawData),
-            });
-            
-            const result = await response.json();
+        try {
+            const response = await fetch('/api/registrar_ocorrencia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rawData),
+            });
+            
+            const result = await response.json();
 
-            if (!response.ok) {
-                throw new Error(result.error || 'Erro desconhecido ao registrar');
-            }
-            
-            mostrarMensagem(result.message, 'success');
-            
-            // Limpar formulário após o envio
-            document.getElementById('ocorrencia-form').reset();
-            document.getElementById('tutor').value = '';
-            atualizarAlunos(); 
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro desconhecido ao registrar');
+            }
+            
+            mostrarMensagem(result.message + '. Redirecionando para o menu de ocorrências...', 'success');
+            
+            // >>> INSERÇÃO DA LÓGICA DE REDIRECIONAMENTO <<<
+            setTimeout(() => {
+                window.location.href = '/gestao_ocorrencia';
+            }, 1500); // Redireciona após 1.5 segundos para o usuário ver a mensagem
+            // >>> FIM DA LÓGICA DE REDIRECIONAMENTO <<<
 
-        } catch (error) {
-            console.error("Erro ao registrar a ocorrência:", error);
-            mostrarMensagem('Erro ao registrar a ocorrência. ' + error.message, 'danger');
-        }
-    }
-    </script>
-    <style>
-        /* Estilos base para o formulário */
-        .form-select, .form-input, .form-textarea {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            background-color: #374151; /* input-bg */
-            color: #f3f4f6; /* text-light */
-            border: 1px solid #1E293B; /* dark-secondary border */
-            transition: all 0.2s;
-        }
-        .form-select:focus, .form-input:focus, .form-textarea:focus {
-            outline: none;
-            border-color: #10B981; /* accent color */
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* accent shadow */
-        }
-        label {
-            color: #F8FAFC; /* text-light */
-            font-weight: 500;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        .input-readonly {
-            background-color: #1F2937; /* Slightly darker background for readonly */
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-        html, body { height: 100%; }
-        #app-container { min-height: 100vh; }
-        .bg-accent { background-color: #10B981; }
-        .bg-danger { background-color: #DC2626; }
-        .bg-dark-secondary { background-color: #1E293B; }
-        /* Adicionei esta classe que estava faltando no seu CSS original */
-        .text-yellow-400 { color: #FBBF24; }
-    </style>
+        } catch (error) {
+            console.error("Erro ao registrar a ocorrência:", error);
+            mostrarMensagem('Erro ao registrar a ocorrência. ' + error.message, 'danger');
+        }
+    }
+    </script>
+    <style>
+        /* Estilos base para o formulário */
+        .form-select, .form-input, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background-color: #374151; /* input-bg */
+            color: #f3f4f6; /* text-light */
+            border: 1px solid #1E293B; /* dark-secondary border */
+            transition: all 0.2s;
+        }
+        .form-select:focus, .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #10B981; /* accent color */
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* accent shadow */
+        }
+        label {
+            color: #F8FAFC; /* text-light */
+            font-weight: 500;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .input-readonly {
+            background-color: #1F2937; /* Slightly darker background for readonly */
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        html, body { height: 100%; }
+        #app-container { min-height: 100vh; }
+        .bg-accent { background-color: #10B981; }
+        .bg-danger { background-color: #DC2626; }
+        .bg-dark-secondary { background-color: #1E293B; }
+        /* Adicionei esta classe que estava faltando no seu CSS original */
+        .text-yellow-400 { color: #FBBF24; }
+    </style>
 </head>
 <body class="bg-dark-primary font-sans text-text-light" onload="submeterOcorrencia">
-    
-    <div id="app-container" class="flex flex-col items-center justify-between p-4 md:p-8">
+    
+    <div id="app-container" class="flex flex-col items-center justify-between p-4 md:p-8">
 
-        <header class="w-full text-center mb-8 mt-4">
-            <h1 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
-                SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR
-            </h1><br>
-            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
-                GESTÃO DE OCORRÊNCIAS - NOVA OCORRÊNCIA
-            </h2>
+        <header class="w-full text-center mb-8 mt-4">
+            <h1 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR
+            </h1><br>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                GESTÃO DE OCORRÊNCIAS - NOVA OCORRÊNCIA
+            </h2>
 
-            <button onclick="window.location.href='/gestao_ocorrencia'"
-                    class="mt-4 px-4 py-2 text-sm font-medium rounded-lg text-gray-300 border border-gray-600 hover:bg-gray-700 transition duration-150 flex items-center mx-auto">
-                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-                Voltar ao Menu de Ocorrências
-            </button>
-        </header>
+            <button onclick="window.location.href='/gestao_ocorrencia'"
+                    class="mt-4 px-4 py-2 text-sm font-medium rounded-lg text-gray-300 border border-gray-600 hover:bg-gray-700 transition duration-150 flex items-center mx-auto">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                Voltar ao Menu de Ocorrências
+            </button>
+        </header>
 
-        <main class="w-full max-w-4xl flex-grow flex justify-center">
-            <div class="card w-full p-6 md:p-8 bg-dark-secondary rounded-xl shadow-2xl mb-8">
-                
-                <div id="mensagem-status" class="hidden p-3 mb-4 text-sm font-medium text-white rounded-lg" role="alert"></div>
+        <main class="w-full max-w-4xl flex-grow flex justify-center">
+            <div class="card w-full p-6 md:p-8 bg-dark-secondary rounded-xl shadow-2xl mb-8">
+                
+                <div id="mensagem-status" class="hidden p-3 mb-4 text-sm font-medium text-white rounded-lg" role="alert"></div>
 
-                <form id="ocorrencia-form" onsubmit="submeterOcorrencia(event)">
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <label for="prof-responsavel">Professor / Funcionário *</label> 
-                            <select id="prof-responsavel" class="form-select" required>
-                                <option value="" disabled selected>Carregando Professores...</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="sala">Sala *</label>
-                            <select id="sala" class="form-select" required>
-                                <option value="" disabled selected>Carregando Salas...</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <label for="aluno">Aluno *</label>
-                            <select id="aluno" class="form-select" disabled required>
-                                <option value="" disabled selected>Selecione a Sala primeiro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="tutor">Tutor (Automático)</label>
-                            <input type="text" id="tutor" class="form-input input-readonly" readonly value="" placeholder="Preenchido ao escolher Aluno">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-6">
-                        <label for="descricao-ocorrencia">Descrição Ocorrência *</label>
-                        <textarea id="descricao-ocorrencia" rows="4" class="form-textarea" placeholder="Descreva detalhadamente o ocorrido, o local, as testemunhas e a gravidade do fato." required></textarea>
-                    </div>
+                <form id="ocorrencia-form" onsubmit="submeterOcorrencia(event)">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label for="prof-responsavel">Professor / Funcionário *</label> 
+                            <select id="prof-responsavel" class="form-select" required>
+                                <option value="" disabled selected>Carregando Professores...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="sala">Sala *</label>
+                            <select id="sala" class="form-select" required>
+                                <option value="" disabled selected>Carregando Salas...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label for="aluno">Aluno *</label>
+                            <select id="aluno" class="form-select" disabled required>
+                                <option value="" disabled selected>Selecione a Sala primeiro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="tutor">Tutor (Automático)</label>
+                            <input type="text" id="tutor" class="form-input input-readonly" readonly value="" placeholder="Preenchido ao escolher Aluno">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label for="descricao-ocorrencia">Descrição Ocorrência *</label>
+                        <textarea id="descricao-ocorrencia" rows="4" class="form-textarea" placeholder="Descreva detalhadamente o ocorrido, o local, as testemunhas e a gravidade do fato." required></textarea>
+                    </div>
 
-                    <div class="mb-6">
-                        <label for="atendimento-professor">Atendimento Professor *</label>
-                        <textarea id="atendimento-professor" rows="3" class="form-textarea" placeholder="Quais medidas imediatas foram tomadas pelo professor responsável?" required></textarea>
-                    </div>
+                    <div class="mb-6">
+                        <label for="atendimento-professor">Atendimento Professor *</label>
+                        <textarea id="atendimento-professor" rows="3" class="form-textarea" placeholder="Quais medidas imediatas foram tomadas pelo professor responsável?" required></textarea>
+                    </div>
 
-                    <div class="pt-2 pb-6 border-t border-gray-700">
-                        <h3 class="text-lg font-semibold mb-3 text-accent">Solicitar Atendimento (Opcional)</h3>
-                        <div class="flex flex-wrap gap-4">
-                            <label for="solicitar-tutor" class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition">
-                                <input type="checkbox" id="solicitar-tutor" class="form-checkbox h-5 w-5 text-blue-500 rounded focus:ring-blue-500">
-                                <span class="text-gray-300 font-medium">Tutor</span>
-                            </label>
-                            <label for="solicitar-coordenacao" class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition">
-                                <input type="checkbox" id="solicitar-coordenacao" class="form-checkbox h-5 w-5 text-yellow-500 rounded focus:ring-yellow-500">
-                                <span class="text-gray-300 font-medium">Coordenação</span>
-                            </label>
-                            <label for="solicitar-gestao" class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition">
-                                <input type="checkbox" id="solicitar-gestao" class="form-checkbox h-5 w-5 text-red-500 rounded focus:ring-red-500">
-                                <span class="text-gray-300 font-medium">Gestão</span>
-                            </label>
-                        </div>
-                    </div>
+                    <div class="pt-2 pb-6 border-t border-gray-700">
+                        <h3 class="text-lg font-semibold mb-3 text-accent">Solicitar Atendimento (Opcional)</h3>
+                        <div class="flex flex-wrap gap-4">
+                            <label for="solicitar-tutor" class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition">
+                                <input type="checkbox" id="solicitar-tutor" class="form-checkbox h-5 w-5 text-blue-500 rounded focus:ring-blue-500">
+                                <span class="text-gray-300 font-medium">Tutor</span>
+                            </label>
+                            <label for="solicitar-coordenacao" class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition">
+                                <input type="checkbox" id="solicitar-coordenacao" class="form-checkbox h-5 w-5 text-yellow-500 rounded focus:ring-yellow-500">
+                                <span class="text-gray-300 font-medium">Coordenação</span>
+                            </label>
+                            <label for="solicitar-gestao" class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition">
+                                <input type="checkbox" id="solicitar-gestao" class="form-checkbox h-5 w-5 text-red-500 rounded focus:ring-red-500">
+                                <span class="text-gray-300 font-medium">Gestão</span>
+                            </label>
+                        </div>
+                    </div>
 
-                    <button type="submit" class="w-full bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg shadow-emerald-500/50 flex items-center justify-center space-x-2 transform hover:scale-[1.01]">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>REGISTRAR OCORRÊNCIA</span>
-                    </button>
-                    
-                    <p class="mt-4 text-xs text-gray-400 text-center">* Campos de preenchimento obrigatório.</p>
+                    <button type="submit" class="w-full bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg shadow-emerald-500/50 flex items-center justify-center space-x-2 transform hover:scale-[1.01]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>REGISTRAR OCORRÊNCIA</span>
+                    </button>
+                    
+                    <p class="mt-4 text-xs text-gray-400 text-center">* Campos de preenchimento obrigatório.</p>
 
-                </form>
+                </form>
 
-            </div>
-        </main>
+            </div>
+        </main>
 
-        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
-            <p class="mb-1 text-base font-medium">
-                DESENVOLVEDOR: MARCELO NOGUEIRA CARDES
-            </p>
-            <p class="text-xs font-light tracking-wide">
-                LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
-            </p>
-        </footer>
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO NOGUEIRA CARDES
+            </p>
+            <p class="text-xs font-light tracking-wide">
+                LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
+            </p>
+        </footer>
 
-    </div>
+    </div>
 
 </body>
 
 </html>
-
-
-
-
-
-
-
-
-
