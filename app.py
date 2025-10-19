@@ -339,15 +339,13 @@ def api_datas_registradas(sala_id):
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar datas: {e}", "status": 500}), 500
 
-@app.route('/api/alunos_por_tutor/<tutor_id>', methods=['GET'])
-def api_get_alunos_por_tutor(tutor_id):
+@app.route('/api/alunos_por_tutor/<tutor_id>')
+def get_alunos_por_tutor(tutor_id):
     try:
-        tutor_id_bigint = int(tutor_id)
-        response = supabase.table('d_alunos').select('id, nome').eq('tutor_id', tutor_id_bigint).order('nome').execute()
-        alunos = [{"id": str(a['id']), "nome": a['nome']} for a in handle_supabase_response(response)]
-        return jsonify(alunos)
+        data = supabase.table('alunos').select('id, nome').eq('tutor_id', tutor_id).execute()
+        return jsonify(data.data)
     except Exception as e:
-        return jsonify({"error": f"Erro ao buscar alunos por tutor: {e}", "status": 500}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/disciplinas', methods=['GET'])
 def api_get_disciplinas():
@@ -2017,13 +2015,31 @@ def gerar_pdf_ocorrencias():
         logging.exception("Falha ao gerar PDF ou atualizar status de impressão.")
         return jsonify({"error": f"Falha ao gerar PDF ou registrar impressão: {str(e)}"}), 500
 
+@app.route('/api/tutores')
+def get_tutores():
+    try:
+        data = supabase.table('tutores').select('id, nome').execute()
+        return jsonify(data.data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
+@app.route('/api/ficha_tutoria/<aluno_id>')
+def get_ficha_tutoria(aluno_id):
+    try:
+        data = supabase.table('ficha_tutoria').select('*').eq('aluno_id', aluno_id).execute()
+        if data.data:
+            return jsonify(data.data[0])
+        return jsonify({'error': 'Ficha não encontrada'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+        
 # =========================================================
 # EXECUÇÃO
 # =========================================================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
