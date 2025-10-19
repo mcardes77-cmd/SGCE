@@ -69,63 +69,72 @@ let ultimoRegistro = null;
 let salaAtual = null;
 const feriadosFixos = ["2025-10-27","2025-11-20"];
 
-async function carregarSalas(){
-  try{
+async function carregarSalas() {
+  try {
     const resp = await fetch("/api/salas");
-    if(!resp.ok) throw new Error("Erro ao buscar salas");
+    if (!resp.ok) throw new Error("Erro ao buscar salas");
     const salas = await resp.json();
+
     const select = document.getElementById("salaSelect");
     select.innerHTML = '<option value="">Selecione...</option>';
-    if(Array.isArray(salas)){
+
+    if (Array.isArray(salas)) {
       salas.forEach(s => {
         const opt = document.createElement("option");
         opt.value = s.id;
-        opt.textContent = s.nome || "Sem nome";
+        // 🔹 CORRIGIDO: usar 's.sala' em vez de 's.nome'
+        opt.textContent = s.sala || "Sem nome";
         select.appendChild(opt);
       });
+    } else {
+      throw new Error("Formato inesperado de dados de sala");
     }
-  }catch(err){
+  } catch (err) {
+    console.error("Erro ao carregar salas:", err);
     alert("Erro ao carregar salas: " + err.message);
   }
 }
 
-function carregarMeses(){
-  const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+function carregarMeses() {
+  const meses = [
+    "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+    "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
+  ];
   const sel = document.getElementById("mesSelect");
   sel.innerHTML = '<option value="">Selecione...</option>';
-  meses.forEach((m,i)=>{
+  meses.forEach((m,i) => {
     const opt = document.createElement("option");
-    opt.value = i+1;
+    opt.value = i + 1;
     opt.textContent = m;
     sel.appendChild(opt);
   });
 }
 
-async function visualizar(){
+async function visualizar() {
   const sala = document.getElementById("salaSelect").value;
   const mes = document.getElementById("mesSelect").value;
-  if(!sala || !mes) return alert("Selecione sala e mês!");
+  if (!sala || !mes) return alert("Selecione sala e mês!");
   salaAtual = sala;
 
-  try{
+  try {
     const resp = await fetch(`/api/frequencia?sala=${sala}&mes=${mes}`);
-    if(!resp.ok){
+    if (!resp.ok) {
       const error = await resp.json();
       throw new Error(error.error || "Erro desconhecido");
     }
     const dados = await resp.json();
     montarTabela(dados, parseInt(mes));
-  }catch(err){
+  } catch (err) {
     console.error(err);
     document.getElementById("tabelaContainer").innerHTML =
       '<div class="text-center p-4 text-red-400">Erro ao carregar os dados. Verifique o console.</div>';
   }
 }
 
-function montarTabela(dados, mes){
+function montarTabela(dados, mes) {
   const container = document.getElementById("tabelaContainer");
   container.innerHTML = '';
-  if(!Array.isArray(dados) || dados.length === 0){
+  if (!Array.isArray(dados) || dados.length === 0) {
     container.innerHTML = '<div class="text-center p-4 text-gray-400">Nenhum dado de frequência encontrado.</div>';
     return;
   }
@@ -133,44 +142,46 @@ function montarTabela(dados, mes){
   const dias = [];
   const ano = 2025;
   const totalDias = new Date(ano, mes, 0).getDate();
-  for(let d=1; d<=totalDias; d++){
+  for (let d = 1; d <= totalDias; d++) {
     const data = dayjs(`${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
     const diaSemana = data.day();
-    if(diaSemana!==0 && diaSemana!==6 && !feriadosFixos.includes(data.format("YYYY-MM-DD"))) dias.push(data);
+    if (diaSemana !== 0 && diaSemana !== 6 && !feriadosFixos.includes(data.format("YYYY-MM-DD"))) dias.push(data);
   }
 
   let html = `<table class="min-w-full text-sm"><thead><tr><th>Aluno</th>`;
-  dias.forEach(d=>html+=`<th>${d.format('DD')}</th>`);
+  dias.forEach(d => html += `<th>${d.format('DD')}</th>`);
   html += `</tr></thead><tbody>`;
 
-  dados.forEach(aluno=>{
+  dados.forEach(aluno => {
     html += `<tr><td class="text-left font-semibold">${aluno.nome}</td>`;
-    dias.forEach(d=>{
+    dias.forEach(d => {
       const dataKey = d.format("YYYY-MM-DD");
       const freq = aluno.frequencia?.[dataKey] || "";
       let cor = "text-gray-400";
-      const click = ["PA","PS","PSA"].includes(freq) ? `onclick="abrirModalDetalhe('${aluno.id}','${dataKey}','${mes}')"` : "";
-      if(freq==="P") cor="text-green-500 font-bold";
-      if(freq==="F") cor="text-red-500 font-bold";
-      if(["PA","PS","PSA"].includes(freq)) cor="text-yellow-400 font-bold cursor-pointer underline";
-      html+=`<td class="${cor}" ${click}>${freq}</td>`;
+      const click = ["PA","PS","PSA"].includes(freq)
+        ? `onclick="abrirModalDetalhe('${aluno.id}','${dataKey}','${mes}')"`
+        : "";
+      if (freq === "P") cor = "text-green-500 font-bold";
+      if (freq === "F") cor = "text-red-500 font-bold";
+      if (["PA","PS","PSA"].includes(freq)) cor = "text-yellow-400 font-bold cursor-pointer underline";
+      html += `<td class="${cor}" ${click}>${freq}</td>`;
     });
-    html+=`</tr>`;
+    html += `</tr>`;
   });
 
   html += `</tbody></table>`;
   container.innerHTML = html;
 }
 
-async function abrirModalDetalhe(alunoId, data, mes){
+async function abrirModalDetalhe(alunoId, data, mes) {
   document.getElementById("modal").classList.remove("hidden");
   const modalContent = document.getElementById("modalContent");
   modalContent.innerHTML = "Carregando detalhes...";
 
-  try{
-    if(!salaAtual) throw new Error("ID da sala ausente.");
+  try {
+    if (!salaAtual) throw new Error("ID da sala ausente.");
     const resp = await fetch(`/api/detalhe_frequencia?aluno_id=${alunoId}&data=${data}&mes=${mes}&sala_id=${salaAtual}`);
-    if(!resp.ok){
+    if (!resp.ok) {
       const err = await resp.json();
       modalContent.innerHTML = err.erro || "Erro ao carregar detalhes";
       return;
@@ -186,30 +197,34 @@ async function abrirModalDetalhe(alunoId, data, mes){
       <p><strong>Status:</strong> ${info.status || '-'}</p>
       <p><strong>Observação:</strong> ${info.observacao || 'Nenhuma registrada'}</p>
     `;
-  }catch(err){
+  } catch (err) {
     console.error(err);
     modalContent.innerHTML = `<p class="text-red-600">Erro ao carregar detalhes: ${err.message}</p>`;
   }
 }
 
-function fecharModal(){ document.getElementById("modal").classList.add("hidden"); }
+function fecharModal() {
+  document.getElementById("modal").classList.add("hidden");
+}
 
 document.getElementById("btnVisualizar").addEventListener("click", visualizar);
-document.getElementById("btnPDF").addEventListener("click", ()=>{
-  if(!ultimoRegistro) return alert("Nenhum registro para gerar PDF.");
+document.getElementById("btnPDF").addEventListener("click", () => {
+  if (!ultimoRegistro) return alert("Nenhum registro para gerar PDF.");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   doc.setFontSize(14);
-  doc.text("Relatório de Frequência",105,15,{align:"center"});
+  doc.text("Relatório de Frequência", 105, 15, { align: "center" });
   doc.setFontSize(12);
-  doc.text(`Aluno: ${ultimoRegistro.nome}`,15,30);
-  doc.text(`Data: ${dayjs(ultimoRegistro.data_registro).format('DD/MM/YYYY')}`,15,38);
-  doc.text(`Tipo: ${ultimoRegistro.tipo_registro || '-'}`,15,46);
+  doc.text(`Aluno: ${ultimoRegistro.nome}`, 15, 30);
+  doc.text(`Data: ${dayjs(ultimoRegistro.data_registro).format('DD/MM/YYYY')}`, 15, 38);
+  doc.text(`Tipo: ${ultimoRegistro.tipo_registro || '-'}`, 15, 46);
   doc.save(`frequencia_${ultimoRegistro.nome}_${ultimoRegistro.data_registro}.pdf`);
 });
 
 carregarSalas();
 carregarMeses();
 </script>
+
 </body>
 </html>
+
