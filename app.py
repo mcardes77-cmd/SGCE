@@ -929,7 +929,7 @@ def api_salvar_frequencia_massa():
         
     try:
         # Usa UPSERT (on_conflict na PK) para atualizar se já existir ou inserir se for novo.
-        response = supabase.table('f_frequencia').upsert(registros_a_salvar, on_conflict='aluno_id, data').execute()
+        response = supabase.table("f_frequencia").upsert(payload, on_conflict=["aluno_id", "data"]).execute()
         handle_supabase_response(response)
         return jsonify({"message": f"{len(registros_a_salvar)} registros de frequência salvos/atualizados com sucesso!", "status": 201}), 201
     except Exception as e:
@@ -2005,6 +2005,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
