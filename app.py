@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, jsonify, send_file
 from supabase import create_client, Client
 import json
 from datetime import datetime
-from calendar import monthrange 
+from calendar import monthrange
 import io
 from fpdf import FPDF
 
@@ -144,8 +144,7 @@ def gestao_relatorio_estatistico():
 
 @app.route('/gestao_relatorio_frequencia')
 def gestao_relatorio_frequencia():
-    # ROTA CORRIGIDA: Aponta para o arquivo que contém a lógica de filtro/tabela de frequência
-    return render_template('gestao_relatorio_frequencia.html') 
+    return render_template('gestao_relatorio_frequencia.html')  
 
 @app.route('/gestao_relatorio_impressao')
 def gestao_relatorio_impressao():
@@ -155,6 +154,7 @@ def gestao_relatorio_impressao():
 def gestao_relatorio_tutoria():
     return render_template('gestao_relatorio_tutoria.html')
 
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
 @app.route('/gestao_frequencia')
 def gestao_frequencia():
     return render_template('gestao_frequencia.html')
@@ -171,6 +171,7 @@ def gestao_frequencia_atraso():
 def gestao_frequencia_saida():
     return render_template('gestao_frequencia_saida.html')
 
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
 @app.route('/gestao_tutoria')
 def gestao_tutoria():
     return render_template('gestao_tutoria.html')
@@ -260,6 +261,17 @@ def gestao_cadastro_vincular_disciplina_sala():
 # ROTAS DE API (DADOS)
 # =========================================================
 
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
+@app.route("/api/salas")
+def api_salas():
+    """Busca salas - versão simplificada (apenas id e nome)."""
+    try:
+        res = supabase.table("d_salas").select("id,sala").execute()
+        return jsonify(res.data)
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar salas: {e}", "status": 500}), 500
+
+
 @app.route('/api/funcionarios', methods=['GET'])
 def api_get_funcionarios():
     try:
@@ -293,16 +305,16 @@ def api_get_alunos_por_sala(sala_id):
         logging.error(f"Erro ao buscar alunos por sala: {e}")
         return jsonify({"error": f"Erro ao buscar alunos por sala: {e}", "status": 500}), 500
 
-@app.route('/api/tutores', methods=['GET'])
-def api_get_tutores():
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
+@app.route("/api/tutores")
+def api_tutores():
+    """Busca tutores - versão simplificada (tabela d_tutores)."""
     try:
-        response = supabase.table('d_funcionarios').select('id, nome, email, funcao').eq('is_tutor', True).order('nome').execute()
-        tutores_raw = handle_supabase_response(response)
-        tutores = [{"id": str(t["id"]), "nome": t["nome"], "email": t.get("email", ""), "funcao": t.get("funcao", "")} for t in tutores_raw]
-        return jsonify(tutores)
+        res = supabase.table("d_tutores").select("id,nome").execute()
+        return jsonify(res.data)
     except Exception as e:
-        logging.error(f"Erro ao buscar tutores: {e}")
-        return jsonify({"error": f"Erro ao buscar tutores: {e}", "status": 500}), 500
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/relatorio_frequencia')
 def api_relatorio_frequencia():
@@ -651,38 +663,20 @@ def api_get_ocorrencias(ocorrencia_id=None):
         logging.error(f"Erro ao buscar ocorrência de detalhe: {e}")
         return jsonify({"error": f"Falha ao buscar detalhes: {e}", "status": 500}), 500
 
-@app.route('/api/alunos', methods=['GET'])
-def api_get_alunos_all():
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
+@app.route("/api/alunos")
+def api_alunos():
+    """Busca alunos filtrando por tutor_id via query param."""
+    tutor_id = request.args.get("tutor_id")
+    if not tutor_id:
+        return jsonify([])
+
     try:
-        response = supabase.table('d_alunos').select('id, ra, nome, sala_id, tutor_id').order('nome').execute()
-        alunos_raw = handle_supabase_response(response)
-        alunos = []
-        for a in alunos_raw:
-            try:
-                sala_nome = None
-                tutor_nome = None
-                if a.get('sala_id'):
-                    sala_resp = supabase.table('d_salas').select('sala').eq('id', a['sala_id']).single().execute()
-                    sala_data = handle_supabase_response(sala_resp)
-                    sala_nome = sala_data.get('sala') if isinstance(sala_data, dict) else None
-                if a.get('tutor_id'):
-                    tut_resp = supabase.table('d_funcionarios').select('nome').eq('id', a['tutor_id']).single().execute()
-                    tut_data = handle_supabase_response(tut_resp)
-                    tutor_nome = tut_data.get('nome') if isinstance(tut_data, dict) else None
-                alunos.append({
-                    "id": str(a.get('id')),
-                    "ra": a.get('ra'),
-                    "nome": a.get('nome'),
-                    "sala_nome": sala_nome or 'N/A',
-                    "tutor_nome": tutor_nome or 'Não Vinculado'
-                })
-            except Exception as inner_e:
-                logging.warning(f"Erro ao processar aluno {a.get('nome')}: {inner_e}")
-                continue
-        return jsonify(alunos)
+        # A nova lógica busca alunos com base no tutor_id
+        res = supabase.table("d_alunos").select("id,nome").eq("tutor_id", tutor_id).execute()
+        return jsonify(res.data)
     except Exception as e:
-        logging.exception("Erro /api/alunos")
-        return jsonify({"error": f"Erro ao buscar todos os alunos: {e}", "status": 500}), 500
+        return jsonify({"error": f"Erro ao buscar alunos: {e}", "status": 500}), 500
 
 @app.route('/api/vinculacoes_disciplinas/<sala_id>', methods=['GET'])
 def api_get_vinculacoes_disciplinas(sala_id):
@@ -759,167 +753,74 @@ def api_get_guia_aprendizagem():
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar Guia de Aprendizagem: {e}", "status": 500}), 500
 
-@app.route('/api/salas')
-def api_salas():
-    # Exemplo: buscar salas no Supabase
-    response = supabase.table("d_salas").select("id, nome").execute()
-    return jsonify(response.data)
-
-@app.route('/api/frequencia')
-def api_frequencia():
-    sala_id = request.args.get('sala')
-    mes = int(request.args.get('mes'))
-    ano = 2025  # ou datetime.now().year
-
-    # Buscar alunos da sala
-    alunos = supabase.table("d_alunos").select("id, nome").eq("sala_id", sala_id).execute().data
-
-    # Buscar registros de frequência do mês
-    registros = supabase.table("f_frequencia") \
-        .select("aluno_id, data, status") \
-        .gte("data", f"{ano}-{mes:02d}-01") \
-        .lte("data", f"{ano}-{mes:02d}-31") \
-        .execute().data
-
-    resultado = []
-    for aluno in alunos:
-        freq_map = {r['data']: r['status'] for r in registros if r['aluno_id'] == aluno['id']}
-        resultado.append({
-            "nome": aluno['nome'],
-            "frequencia": freq_map
-        })
-
-    return jsonify(resultado)
-
-@app.route('/api/detalhe_frequencia')
-def detalhe_frequencia():
-    aluno_nome = request.args.get('aluno')
-    data = request.args.get('data')
-
-    if not aluno_nome or not data:
-        return jsonify({"erro": "Parâmetros inválidos"}), 400
-
-    # Buscar o aluno pelo nome (ou ID, se preferir)
-    aluno = supabase.table("d_alunos").select("id").ilike("nome", aluno_nome).execute().data
-    if not aluno:
-        return jsonify({"erro": "Aluno não encontrado"}), 404
-
-    aluno_id = aluno[0]['id']
-
-    # Buscar registro de frequência específico
-    registro = supabase.table("f_frequencia") \
-        .select("data, status, hora_entrada, hora_saida, observacao") \
-        .eq("aluno_id", aluno_id) \
-        .eq("data", data) \
-        .execute().data
-
-    if not registro:
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
 @app.route("/api/frequencia")
-def get_frequencia():
-    """
-    Retorna os registros de frequência de uma sala e mês,
-    formatando apenas o número do dia como coluna.
-    """
+def api_frequencia():
+    """Busca frequência - Versão simplificada (Dados da coluna `data_registro` e `status_agendamento`)."""
     sala = request.args.get("sala")
     mes = request.args.get("mes")
+    if not sala or not mes:
+        return jsonify({"error": "Parâmetros sala e mes obrigatórios"}), 400
+
+    mes = int(mes)
     ano = datetime.now().year
 
-    if not sala or not mes:
-        return jsonify({"erro": "Sala e mês são obrigatórios"}), 400
+    try:
+        # Buscar todos os alunos da sala
+        alunos_res = supabase.table("d_alunos").select("id,nome").eq("sala_id", sala).execute()
+        alunos = alunos_res.data
 
-    # 🧩 Busca alunos da sala
-    alunos_resp = supabase.table("d_alunos") \
-        .select("id, nome") \
-        .eq("sala_id", sala) \
-        .order("nome", desc=False) \
-        .execute()
+        resultado = []
+        for aluno in alunos:
+            # Buscar frequência do aluno no mês
+            # Nota: Esta query não está filtrando por mês/ano, o que pode trazer dados incorretos.
+            freq_res = supabase.table("f_frequencia") \
+                .select("*") \
+                .eq("aluno_id", aluno["id"]) \
+                .execute()
+            freq_data = {}
+            for f in freq_res.data:
+                # O frontend irá tentar extrair data_registro e status_agendamento
+                data_str = f.get("data_registro", "")[:10]
+                # Assume que a coluna de status é status_agendamento
+                freq_data[data_str] = f.get("status_agendamento", "")  
+            resultado.append({
+                "id": aluno["id"],
+                "nome": aluno["nome"],
+                "frequencia": freq_data
+            })
+        return jsonify(resultado)
+    except Exception as e:
+        logging.error(f"Erro em api_frequencia: {e}")
+        return jsonify({"error": f"Erro interno ao buscar frequência: {e}"}), 500
 
-    alunos = alunos_resp.data or []
-
-    # 📆 Intervalo do mês
-    inicio_mes = f"{ano}-{str(mes).zfill(2)}-01"
-    fim_mes = f"{ano}-{str(mes).zfill(2)}-31"
-
-    # 🔍 Frequência do mês
-    freq_resp = supabase.table("f_frequencia") \
-        .select("id, fk_aluno_id, fk_sala_id, status, created_at") \
-        .eq("fk_sala_id", sala) \
-        .gte("created_at", inicio_mes) \
-        .lte("created_at", fim_mes) \
-        .execute()
-
-    frequencias = freq_resp.data or []
-
-    # 🗂️ Monta dicionário aluno → dia → status
-    resultado = []
-    for aluno in alunos:
-        freq_dict = {}
-        for f in frequencias:
-            if f["fk_aluno_id"] == aluno["id"]:
-                try:
-                    data = datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%S%z")
-                except ValueError:
-                    data = datetime.fromisoformat(f["created_at"].replace("Z", "+00:00"))
-                dia = str(data.day).zfill(2)
-                freq_dict[dia] = f.get("status", "")
-        resultado.append({
-            "nome": aluno["nome"],
-            "id": aluno["id"],
-            "frequencia": freq_dict
-        })
-
-    return jsonify(resultado)
-
-
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
 @app.route("/api/detalhe_frequencia")
 def detalhe_frequencia():
-    """
-    Retorna os detalhes do registro de atraso ou saída antecipada
-    para exibir no modal.
-    """
+    """Busca detalhes de frequência - Versão simplificada (data_registro)."""
     aluno_id = request.args.get("aluno_id")
-    sala_id = request.args.get("sala_id")
-    dia = request.args.get("dia")
+    data = request.args.get("data")
     mes = request.args.get("mes")
-    ano = datetime.now().year
+    sala_id = request.args.get("sala_id")
+    if not all([aluno_id, data, mes, sala_id]):
+        return jsonify({"erro":"Parâmetros obrigatórios ausentes"}),400
 
-    if not aluno_id or not sala_id or not dia or not mes:
-        return jsonify({"erro": "Parâmetros obrigatórios ausentes"}), 400
-
-    # Constrói o intervalo do dia
-    data_inicio = f"{ano}-{str(mes).zfill(2)}-{str(dia).zfill(2)}T00:00:00Z"
-    data_fim = f"{ano}-{str(mes).zfill(2)}-{str(dia).zfill(2)}T23:59:59Z"
-
-    # 🔎 Busca o registro específico
-    resp = supabase.table("f_frequencia") \
-        .select("*") \
-        .eq("fk_aluno_id", aluno_id) \
-        .eq("fk_sala_id", sala_id) \
-        .gte("created_at", data_inicio) \
-        .lte("created_at", data_fim) \
-        .limit(1) \
-        .execute()
-
-    if not resp.data:
-        return jsonify({"erro": "Registro não encontrado"}), 404
-
-    registro = resp.data[0]
-
-    # Retorna apenas os campos de atraso/saída
-    detalhes = {
-        "status": registro.get("status"),
-        "hora_atraso": registro.get("hora_atraso"),
-        "motivo_atraso": registro.get("motivo_atraso"),
-        "responsavel_atraso": registro.get("responsavel_atraso"),
-        "documento_atraso": registro.get("documento_atraso"),
-        "hora_saida": registro.get("hora_saida"),
-        "motivo_saida": registro.get("motivo_saida"),
-        "responsavel_saida": registro.get("responsavel_saida"),
-        "documento_saida": registro.get("documento_saida"),
-        "created_at": registro.get("created_at")
-    }
-
-    return jsonify(detalhes)
+    try:
+        # Buscar registro específico
+        res = supabase.table("f_frequencia") \
+            .select("*") \
+            .eq("aluno_id", aluno_id) \
+            .eq("data_registro", data) \
+            .execute()
+        
+        if not res.data:
+            return jsonify({"erro":"Registro não encontrado"}),404
+        
+        registro = res.data[0]
+        return jsonify(registro)
+    except Exception as e:
+        logging.error(f"Erro em detalhe_frequencia: {e}")
+        return jsonify({"erro": f"Erro interno: {e}"}), 500
 
 @app.route("/api/registrar_atendimento/<int:ocorrencia_id>", methods=["POST"])
 def registrar_atendimento(ocorrencia_id):
@@ -951,7 +852,6 @@ def registrar_atendimento(ocorrencia_id):
         campo_texto, campo_data = campos[nivel]
         
         # CORREÇÃO CRÍTICA DO FORMATO DA DATA: 
-        # Usando o formato ISO 8601 completo (incluindo milissegundos) para ser mais compatível com Supabase/PostgreSQL.
         agora = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
 
         # 1. ATUALIZA OS CAMPOS DE ATENDIMENTO E DATA
@@ -963,12 +863,10 @@ def registrar_atendimento(ocorrencia_id):
         update_result = supabase.table("ocorrencias").update(update_data).eq("numero", ocorrencia_id).execute()
 
         if update_result.count == 0:
-             logging.warning(f"Supabase update falhou silenciosamente para ocorrência {ocorrencia_id}. Dados: {update_data}")
-             # Retorna OK mesmo com falha silenciosa para evitar loop do frontend, mas registra o erro.
-             return jsonify({"success": True, "novo_status": "Aberta", "warning": "Falha ao salvar no banco, status não atualizado."}), 200
+            logging.warning(f"Supabase update falhou silenciosamente para ocorrência {ocorrencia_id}. Dados: {update_data}")
+            return jsonify({"success": True, "novo_status": "Aberta", "warning": "Falha ao salvar no banco, status não atualizado."}), 200
 
         # 2. REAVALIA O STATUS (Busca os dados *após* a atualização)
-        # Consulta sem a coluna 'solicitado_professor' que foi removida
         resp = supabase.table('ocorrencias').select(
             "solicitado_tutor, solicitado_coordenacao, solicitado_gestao, "
             "atendimento_tutor, atendimento_coordenacao, atendimento_gestao, status"
@@ -979,24 +877,20 @@ def registrar_atendimento(ocorrencia_id):
 
         occ = resp.data
         
-        # Converte strings 'SIM'/'NÃO' para booleanos
         st = _to_bool(occ.get('solicitado_tutor'))
         sc = _to_bool(occ.get('solicitado_coordenacao'))
         sg = _to_bool(occ.get('solicitado_gestao'))
 
-        # Limpa o texto de atendimento
         at_tutor = (occ.get('atendimento_tutor') or "").strip()
         at_coord = (occ.get('atendimento_coordenacao') or "").strip()
         at_gest = (occ.get('atendimento_gestao') or "").strip()
 
-        # Lógica de Pendência (Se solicitado E o texto for vazio/default)
         pendente_tutor = st and (at_tutor == "" or at_tutor == DEFAULT_AUTOTEXT)
         pendente_coord = sc and (at_coord == "" or at_coord == DEFAULT_AUTOTEXT)
         pendente_gestao = sg and (at_gest == "" or at_gest == DEFAULT_AUTOTEXT)
 
         novo_status = "Aberta"
         
-        # Ocorrência está FINALIZADA se NENHUMA das pendências solicitadas estiver ativa.
         if not (pendente_tutor or pendente_coord or pendente_gestao):
             novo_status = "Finalizada"
 
@@ -1053,8 +947,8 @@ def api_cadastrar_funcionario():
         # Se 'id' for passado explicitamente na payload, o Supabase tentará usá-lo ou dará erro.
         # Removemos para evitar conflitos se o Supabase for configurado para autoincremento.
         if 'id' in data and data['id'] is not None:
-             novo_funcionario['id'] = data['id']
-             
+            novo_funcionario['id'] = data['id']
+            
         response = supabase.table('d_funcionarios').insert(novo_funcionario).execute()
         handle_supabase_response(response)
         return jsonify({"message": f"{nome} ({funcao}) cadastrado com sucesso!", "status": 201}), 201
@@ -1225,9 +1119,9 @@ def api_salvar_atraso():
         if current_status == 'PS' or current_status == 'PAS': # Já tinha PS ou PAS
             novo_status = 'PAS'
         elif current_status == 'F': # Estava faltando, mas apareceu com atraso.
-             novo_status = 'PA'
+            novo_status = 'PA'
         elif current_status == 'P': # Estava presente. Vira PA.
-             novo_status = 'PA'
+            novo_status = 'PA'
 
         # 3. Prepara o registro (usa UPSERT)
         registro = {
@@ -1270,9 +1164,9 @@ def api_salvar_saida_antecipada():
         if current_status == 'PA' or current_status == 'PAS': # Já tinha PA ou PAS
             novo_status = 'PAS'
         elif current_status == 'F': # Estava faltando, mas saiu cedo (o que implica presença).
-             novo_status = 'PS'
+            novo_status = 'PS'
         elif current_status == 'P': # Estava presente. Vira PS.
-             novo_status = 'PS'
+            novo_status = 'PS'
         
         # 3. Prepara o registro (usa UPSERT)
         registro = {
@@ -1361,6 +1255,36 @@ def api_registrar_ocorrencia():
         logging.exception(f"Erro no Supabase ao registrar ocorrência: {e}")
         # Retorna o erro detalhado (ou um genérico) para o cliente
         return jsonify({"error": f"Falha ao registrar ocorrência: {e}", "status": 500}), 500
+
+# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
+@app.route("/api/agendamento", methods=["POST"])
+def api_agendamento():
+    """Cria um agendamento - Versão simplificada (inserindo em f_frequencia, o que é um erro lógico)."""
+    data = request.json
+    required = ["aluno_id","tutor_id","tipo_atendimento","descricao_atendimento"]
+    if not all([k in data for k in required]):
+        return jsonify({"error":"Campos obrigatórios ausentes"}),400
+
+    insert_data = {
+        # Nota: Estes campos não correspondem à tabela f_frequencia no seu sistema,
+        # mas a rota foi inserida conforme o pedido.
+        "aluno_id": data["aluno_id"],
+        "tutor_id": data["tutor_id"],
+        "tipo_atendimento": data["tipo_atendimento"],
+        "descricao_atendimento": data["descricao_atendimento"],
+        "status_agendamento": "pendente",
+        "data_registro": datetime.now().isoformat()
+    }
+    try:
+        # Nota: Esta inserção deveria ser em 'agendamentos_tutoria' e não em 'f_frequencia'.
+        res = supabase.table("f_frequencia").insert(insert_data).execute()
+        if res.error:
+            return jsonify({"error":res.error.message}),500
+        return jsonify({"success":True})
+    except Exception as e:
+        logging.error(f"Erro em api_agendamento: {e}")
+        return jsonify({"error": f"Erro interno: {e}"}), 500
+
 
 @app.route('/api/agendar_tutoria', methods=['POST'])
 def api_agendar_tutoria():
@@ -1809,7 +1733,7 @@ def api_relatorio_frequencia_detalhada():
         aluno_ids = [a['id'] for a in alunos]
         
         if not aluno_ids:
-             return jsonify({"error": "Nenhum aluno encontrado nesta sala."}), 404
+            return jsonify({"error": "Nenhum aluno encontrado nesta sala."}), 404
 
         # 2. Busca todos os registros de frequência para esses alunos no período
         resp_frequencia = supabase.table('f_frequencia').select('*').in_('fk_aluno_id', aluno_ids).gte('data', data_inicio).lte('data', data_fim).execute()
@@ -1880,7 +1804,7 @@ def api_ocorrencias_por_aluno(aluno_id):
             "numero, data_hora, descricao, status, aluno_nome, aluno_id, sala_id"
         ).eq('aluno_id', aluno_id_bigint).order('data_hora', desc=True).execute()
         
-        ocorrencias_raw = resp.data  # ou handle_supabase_response(resp), dependendo da sua função
+        ocorrencias_raw = resp.data 
         
         # Formata os dados
         ocorrencias_formatadas = [
@@ -2006,14 +1930,6 @@ def gerar_pdf_ocorrencias():
         logging.exception("Falha ao gerar PDF ou atualizar status de impressão.")
         return jsonify({"error": f"Falha ao gerar PDF ou registrar impressão: {str(e)}"}), 500
 
-@app.route('/api/tutores')
-def get_tutores():
-    try:
-        data = supabase.table('tutores').select('id, nome').execute()
-        return jsonify(data.data)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/ficha_tutoria/<aluno_id>')
 def get_ficha_tutoria(aluno_id):
     try:
@@ -2024,86 +1940,10 @@ def get_ficha_tutoria(aluno_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Frequência
-@app.route("/frequencia")
-def frequencia():
-    alunos = supabase_client.table("f_frequencia").select("*").execute().data
-    return render_template("frequencia.html", alunos=alunos)
 
-# Tutoria
-@app.route("/tutoria")
-def tutoria():
-    tutores = supabase_client.table("f_tutoria").select("*").execute().data
-    return render_template("tutoria.html", tutores=tutores)
-
-# Ocorrências abertas
-@app.route("/ocorrencias_abertas")
-def ocorrencias_abertas():
-    ocorrencias = supabase_client.table("f_ocorrencias").select("*").eq("status", "aberta").execute().data
-    return render_template("ocorrencias_abertas.html", ocorrencias=ocorrencias)
-
-# Editar ocorrência
-@app.route("/ocorrencia_editar/<int:id>", methods=["GET", "POST"])
-def ocorrencia_editar(id):
-    if request.method == "POST":
-        dados = request.form.to_dict()
-        supabase_client.table("f_ocorrencias").update(dados).eq("id", id).execute()
-        return redirect(url_for("ocorrencias_abertas"))
-    else:
-        ocorrencia = supabase_client.table("f_ocorrencias").select("*").eq("id", id).single().execute().data
-        return render_template("ocorrencia_editar.html", ocorrencia=ocorrencia)
-
-# API para frequência (JSON)
-@app.route("/api/frequencia")
-def api_frequencia():
-    dados = supabase_client.table("f_frequencia").select("*").execute().data
-    return jsonify(dados)
-
-# API para tutoria (JSON)
-@app.route("/api/tutoria")
-def api_tutoria():
-    dados = supabase_client.table("f_tutoria").select("*").execute().data
-    return jsonify(dados)
-
-# ----------------- FILTROS -----------------
-
-@app.route("/filtrar_frequencia", methods=["POST"])
-def filtrar_frequencia():
-    filtros = request.json
-    query = supabase_client.table("f_frequencia").select("*")
-    if filtros.get("curso"):
-        query = query.eq("curso", filtros["curso"])
-    if filtros.get("turma"):
-        query = query.eq("turma", filtros["turma"])
-    if filtros.get("mes"):
-        query = query.eq("mes", filtros["mes"])
-    alunos = query.execute().data
-    return jsonify(alunos)
-
-@app.route("/filtrar_tutoria", methods=["POST"])
-def filtrar_tutoria():
-    filtros = request.json
-    query = supabase_client.table("f_tutoria").select("*")
-    if filtros.get("tutor"):
-        query = query.eq("tutor", filtros["tutor"])
-    if filtros.get("mes"):
-        query = query.eq("mes", filtros["mes"])
-    atendimentos = query.execute().data
-    return jsonify(atendimentos)
-
-        
 # =========================================================
 # EXECUÇÃO
 # =========================================================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
-
-
-
-
-
-
-
-
