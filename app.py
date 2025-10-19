@@ -1656,31 +1656,45 @@ def gerar_pdf_ocorrencias():
         if not ocorrencias:
             return jsonify({"error": "Nenhuma ocorrência encontrada"}), 404
 
-        pdf = FPDF()
+        # -------------------------------------------------------------
+        # INÍCIO DA GERAÇÃO DO PDF COM FORMATO A4 E MULTI_CELL
+        # -------------------------------------------------------------
+        pdf = FPDF(unit="mm", format="A4") # Define explicitamente A4
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
+        # Define as margens (opcional, mas recomendado para consistência)
+        pdf.set_margins(left=15, top=15, right=15)
+        
+        # TÍTULOS
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, safe_pdf_text("RELATÓRIO DE REGISTRO DE OCORRÊNCIAS"), ln=True, align='C')
         
         pdf.set_font("Arial", "", 12)
         pdf.cell(0, 7, safe_pdf_text("E.E. PEI PROFESSOR IRENE DIAS RIBEIRO"), ln=True, align='C')
-        pdf.ln(5)
+        pdf.ln(8) # Aumenta a linha de espaço
 
-        # Cabeçalho do aluno (usando primeira ocorrência)
+        # CABEÇALHO DO ALUNO (usando primeira ocorrência)
         aluno_nome = ocorrencias[0].get("aluno_nome", "Aluno Desconhecido")
         sala = ocorrencias[0].get("sala_id", "Indefinida")
         tutor = ocorrencias[0].get("tutor_nome", "Indefinido") 
         
-        pdf.cell(0, 7, safe_pdf_text(f"Aluno: {aluno_nome}    Sala: {sala}"), ln=True)
-        pdf.cell(0, 7, safe_pdf_text(f"Tutor: {tutor}"), ln=True)
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(0, 6, safe_pdf_text(f"ALUNO: {aluno_nome}"), ln=True)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(0, 6, safe_pdf_text(f"SALA: {sala} / TUTOR: {tutor}"), ln=True)
         pdf.ln(5)
 
+        # LOOP DE OCORRÊNCIAS
         for o in ocorrencias:
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 7, safe_pdf_text(f"Ocorrência nº: {o.get('numero')}"), ln=True)
+            pdf.set_fill_color(220, 220, 220) # Cor de fundo cinza claro para o título
+            pdf.set_text_color(0, 0, 0) # Texto preto
+
+            pdf.set_font("Arial", "B", 11)
+            pdf.cell(0, 7, safe_pdf_text(f"OCORRÊNCIA Nº: {o.get('numero')} - STATUS: {o.get('status')}"), ln=True, fill=True)
+            pdf.set_text_color(0, 0, 0) # Volta para cor padrão (preto)
             
-            pdf.set_font("Arial", "", 12)
+            pdf.set_font("Arial", "", 10)
             data_hora = o.get('data_hora', '')
             if data_hora:
                 try:
@@ -1692,24 +1706,54 @@ def gerar_pdf_ocorrencias():
             else:
                 data, hora = '', ''
             
-            professor = o.get('atendimento_professor', '---')
-            pdf.cell(0, 6, safe_pdf_text(f"Data: {data}    Hora: {hora}"), ln=True)
-            pdf.cell(0, 6, safe_pdf_text(f"Professor: {professor}"), ln=True)
+            pdf.cell(0, 6, safe_pdf_text(f"Data do Registro: {data} às {hora}"), ln=True)
+            pdf.ln(1)
             
-            pdf.multi_cell(0, 6, safe_pdf_text(f"Descrição:\n{o.get('descricao', '')}"))
+            # DESCRIÇÃO DA OCORRÊNCIA (MULTI_CELL OBRIGATÓRIO)
+            pdf.set_font("Arial", "B", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text("1. DESCRIÇÃO DA OCORRÊNCIA:"))
+            pdf.set_font("Arial", "", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text(o.get('descricao', 'N/A')))
+            pdf.ln(2)
             
-            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Professor:\n{o.get('atendimento_professor', '')}"), ln=True)
-            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Tutor (Se solicitado):\n{o.get('atendimento_tutor', '')}"), ln=True)
-            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Coordenação (Se solicitado):\n{o.get('atendimento_coordenacao', '')}"), ln=True)
-            pdf.cell(0, 6, safe_pdf_text(f"Atendimento Gestão (Se solicitado):\n{o.get('atendimento_gestao', '')}"), ln=True)
-            pdf.ln(3)
-            pdf.line(10, pdf.get_y(), 200, pdf.get_y())  # linha separadora
-            pdf.ln(3)
+            # ATENDIMENTO DO PROFESSOR (CORREÇÃO DE DESCONFIGURAÇÃO)
+            pdf.set_font("Arial", "B", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text("2. ATENDIMENTO DO PROFESSOR (REGISTRO):"))
+            pdf.set_font("Arial", "", 10)
+            # USANDO MULTI_CELL PARA GARANTIR QUEBRAS DE LINHA E AJUSTE A4
+            professor_atendimento = o.get('atendimento_professor', 'Nenhuma intervenção registrada.')
+            pdf.multi_cell(0, 5, safe_pdf_text(professor_atendimento))
+            pdf.ln(2)
 
-        # Assinatura no final
+            # ATENDIMENTOS ADICIONAIS
+            pdf.set_font("Arial", "B", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text("3. ATENDIMENTO DO TUTOR (SE SOLICITADO):"))
+            pdf.set_font("Arial", "", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text(o.get('atendimento_tutor', 'N/A')))
+            pdf.ln(2)
+            
+            pdf.set_font("Arial", "B", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text("4. ATENDIMENTO DA COORDENAÇÃO (SE SOLICITADO):"))
+            pdf.set_font("Arial", "", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text(o.get('atendimento_coordenacao', 'N/A')))
+            pdf.ln(2)
+            
+            pdf.set_font("Arial", "B", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text("5. ATENDIMENTO DA GESTÃO (SE SOLICITADO):"))
+            pdf.set_font("Arial", "", 10)
+            pdf.multi_cell(0, 5, safe_pdf_text(o.get('atendimento_gestao', 'N/A')))
+            
+            pdf.ln(5)
+            pdf.line(15, pdf.get_y(), 195, pdf.get_y()) # linha separadora
+            pdf.ln(5)
+
+        # ÁREA DE ASSINATURA NO FINAL (MANTIDA)
         pdf.ln(10)
-        pdf.cell(0, 10, safe_pdf_text("Assinatura Responsável: _______________________________"), ln=True)
-        pdf.cell(0, 10, safe_pdf_text("Data: ___ / ___ / ______"), ln=True)
+        pdf.set_font("Arial", "I", 10)
+        pdf.cell(0, 10, safe_pdf_text("_______________________________"), ln=True, align='C')
+        pdf.cell(0, 5, safe_pdf_text("Assinatura do Responsável pela Impressão/Entrega"), ln=True, align='C')
+        pdf.cell(0, 10, safe_pdf_text(f"Data de Impressão: {datetime.now().strftime('%d/%m/%Y')}"), ln=True, align='C')
+
 
         pdf_buffer = io.BytesIO()
         pdf.output(pdf_buffer)
@@ -1718,6 +1762,7 @@ def gerar_pdf_ocorrencias():
         # LÓGICA DE ATUALIZAÇÃO NO SUPABASE APÓS SUCESSO DO PDF
         if pdf_buffer.getbuffer().nbytes > 0:
             update_data = {"impressao_pdf": True}
+            # É crucial que o Supabase/Postgrest-py use os nomes das colunas CORRETOS (numero)
             supabase.table('ocorrencias').update(update_data).in_('numero', numeros).execute()
             logging.info(f"Ocorrências {numeros} marcadas como impressas (impressao_pdf=True).")
 
@@ -1953,6 +1998,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
