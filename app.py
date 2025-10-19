@@ -912,13 +912,13 @@ def api_salvar_frequencia_massa():
                 continue
 
             registro = {
-                "fk_aluno_id": aluno_id_bigint,
-                "fk_sala_id": sala_id_bigint,
+                "aluno_id": aluno_id_bigint,
+                "sala_id": sala_id_bigint,
                 "data": data,
                 "status": status,
                 # Chaves de conflito para UPSERT:
                 "data": data, 
-                "fk_aluno_id": aluno_id_bigint
+                "aluno_id": aluno_id_bigint
             }
             registros_a_salvar.append(registro)
         except (ValueError, KeyError, TypeError):
@@ -963,8 +963,8 @@ def api_salvar_atraso():
 
         # 3. Prepara o registro (usa UPSERT)
         registro = {
-            "fk_aluno_id": aluno_id,
-            "fk_sala_id": sala_id,
+            "aluno_id": aluno_id,
+            "sala_id": sala_id,
             "data": registro_data,
             "hora_atraso": data['hora'],
             "motivo_atraso": data['motivo'],
@@ -1008,8 +1008,8 @@ def api_salvar_saida_antecipada():
         
         # 3. Prepara o registro (usa UPSERT)
         registro = {
-            "fk_aluno_id": aluno_id,
-            "fk_sala_id": sala_id,
+            "aluno_id": aluno_id,
+            "sala_id": sala_id,
             "data": registro_data,
             "hora_saida": data['hora'],
             "motivo_saida": data['motivo'],
@@ -1130,7 +1130,7 @@ def api_relatorio_frequencia():
 @app.route('/api/frequencia/datas_registradas_por_sala/<int:sala_id>')
 def api_datas_registradas(sala_id):
     try:
-        resp = supabase.table('f_frequencia').select('data').eq('fk_sala_id', sala_id).order('data').execute()
+        resp = supabase.table('f_frequencia').select('data').eq('sala_id', sala_id).order('data').execute()
         datas = sorted(list({r['data'] for r in handle_supabase_response(resp)}))
         return jsonify(datas)
     except Exception as e:
@@ -1953,7 +1953,6 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
 
 
 
