@@ -1,195 +1,203 @@
+<!-- gestao_frequencia_atraso.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Atraso</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'dark-primary': '#0F172A', 'dark-secondary': '#1E293B',
-                        'secondary-accent': '#4F46E5', 'accent-success': '#10B981',
-                        'alert-danger': '#DC2626', 'text-light': '#F8FAFC',
-                    },
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                }
-            }
-        }
-    </script>
-    <style>
-        body { background-color: #0F172A; color: #F8FAFC; font-family: sans-serif; }
-        .form-select, .form-input {
-            @apply w-full p-3 bg-white border border-gray-700 rounded-lg text-black focus:ring-secondary-accent focus:border-secondary-accent;
-            appearance: menulist !important;
-            color: black !important;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão de Frequência - Atraso</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'dark-primary': '#0F172A',
+            'dark-secondary': '#1E293B',
+            'accent': '#10B981',
+            'text-light': '#F8FAFC',
+            'danger': '#DC2626'
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+        },
+      },
+    };
 
-    <script>
-        let salasData = [];
-        let alunosData = [];
+    function mostrarMensagem(texto, tipo = 'info') {
+      const el = document.getElementById('mensagem-status');
+      el.textContent = texto;
+      el.className = 'fixed top-4 right-4 p-3 rounded-lg shadow-xl z-50 ' +
+        (tipo === 'success' ? 'bg-accent text-text-light' :
+         tipo === 'danger' ? 'bg-danger text-text-light' :
+         'bg-dark-secondary text-yellow-400');
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 4000);
+    }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadSalas();
-            document.getElementById('select-sala').addEventListener('change', loadAlunos);
-        });
+    async function safeJson(resp) {
+      try { return await resp.json(); } catch { return { error: 'Resposta inválida do servidor' }; }
+    }
 
-        async function loadSalas() {
-            try {
-                const response = await fetch('/api/salas');
-                salasData = await response.json();
-                const selectSala = document.getElementById('select-sala');
-                selectSala.innerHTML = '<option value="">Selecione a Sala</option>';
-                salasData.forEach(sala => {
-                    // CORREÇÃO: Usando sala.sala ao invés de sala.nome
-                    selectSala.innerHTML += `<option value="${sala.id}">${sala.sala || sala.nome || 'N/A'}</option>`;
-                });
-            } catch (error) {
-                console.error('Erro ao carregar salas:', error);
-                mostrarMsg('Erro ao carregar salas.', 'alert-danger');
-            }
-        }
+    document.addEventListener('DOMContentLoaded', () => {
+      carregarSalas();
+      document.getElementById('sala').addEventListener('change', carregarAlunos);
+      document.getElementById('btnSalvar').addEventListener('click', salvarAtraso);
+    });
 
-        async function loadAlunos() {
-            const salaId = document.getElementById('select-sala').value;
-            const selectAluno = document.getElementById('select-aluno');
-            selectAluno.innerHTML = '<option value="">Selecione o Aluno</option>';
+    async function carregarSalas() {
+      try {
+        const r = await fetch('/api/salas');
+        if (!r.ok) throw new Error('Erro ao buscar salas');
+        const salas = await r.json();
+        const sel = document.getElementById('sala');
+        sel.innerHTML = '<option value="">Selecione a Sala</option>';
+        salas.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.sala || s.nome}</option>`);
+      } catch (e) {
+        console.error(e);
+        mostrarMensagem('Erro ao carregar salas', 'danger');
+      }
+    }
 
-            if (!salaId) return;
+    async function carregarAlunos() {
+      const salaId = document.getElementById('sala').value;
+      const sel = document.getElementById('aluno');
+      sel.innerHTML = '<option value="">Selecione o Aluno</option>';
+      if (!salaId) return;
+      try {
+        const r = await fetch(`/api/alunos_por_sala/${salaId}`);
+        if (!r.ok) throw new Error('Erro ao buscar alunos');
+        const alunos = await r.json();
+        alunos.forEach(a => sel.innerHTML += `<option value="${a.id}">${a.nome}</option>`);
+      } catch (e) {
+        console.error(e);
+        mostrarMensagem('Erro ao carregar alunos', 'danger');
+      }
+    }
 
-            try {
-                const response = await fetch(`/api/alunos_por_sala/${salaId}`);
-                alunosData = await response.json();
-                alunosData.forEach(aluno => {
-                    selectAluno.innerHTML += `<option value="${aluno.id}">${aluno.nome}</option>`;
-                });
-            } catch (error) {
-                console.error('Erro ao carregar alunos:', error);
-                mostrarMsg('Erro ao carregar alunos.', 'alert-danger');
-            }
-        }
+    async function salvarAtraso() {
+      const aluno_id = document.getElementById('aluno').value;
+      const sala_id = document.getElementById('sala').value;
+      const data = document.getElementById('data').value;
+      const hora_atraso = document.getElementById('hora').value;
+      const motivo_atraso = document.getElementById('motivo').value;
+      const responsavel_atraso = document.getElementById('responsavel').value;
+      const telefone_atraso = document.getElementById('telefone').value;
 
-        async function saveAtraso() {
-            const alunoId = document.getElementById('select-aluno').value;
-            const salaId = document.getElementById('select-sala').value;
-            const data = document.getElementById('input-data').value;
-            const hora = document.getElementById('input-hora').value;
-            const motivo = document.getElementById('input-motivo').value;
-            const responsavel = document.getElementById('input-responsavel').value;
-            const telefone = document.getElementById('input-telefone').value;
+      if (!aluno_id || !sala_id || !data || !hora_atraso || !motivo_atraso || !responsavel_atraso || !telefone_atraso) {
+        mostrarMensagem('Preencha todos os campos', 'danger');
+        return;
+      }
 
-            if (!alunoId || !salaId || !data || !hora || !motivo || !responsavel || !telefone) {
-                mostrarMsg('Todos os campos são obrigatórios.', 'alert-danger');
-                return;
-            }
+      const payload = {
+        aluno_id: Number(aluno_id),
+        sala_id: Number(sala_id),
+        data,
+        hora_atraso,
+        motivo_atraso,
+        responsavel_atraso,
+        telefone_atraso,
+        status: 'PA'
+      };
 
-            const payload = {
-                aluno_id: alunoId,
-                sala_id: salaId,
-                data: data,
-                hora: hora,
-                motivo: motivo,
-                responsavel: responsavel,
-                telefone: telefone
-            };
+      mostrarMensagem('Enviando...', 'info');
 
-            mostrarMsg('Salvando registro de atraso...', 'secondary-accent');
+      try {
+        const resp = await fetch('/api/salvar_atraso', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-            try {
-                const response = await fetch('/api/salvar_atraso', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+        const json = await safeJson(resp);
 
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.error || 'Erro desconhecido ao salvar.');
-                }
-
-                mostrarMsg(result.message, 'accent-success');
-                // Limpar formulário após sucesso
-                document.getElementById('form-atraso').reset();
-                loadAlunos(); // Recarrega alunos para resetar o select
-            } catch (error) {
-                console.error('Erro ao salvar atraso:', error);
-                mostrarMsg(`Erro ao salvar: ${error.message}`, 'alert-danger');
-            }
-        }
-
-        function mostrarMsg(msg, tipo = 'info') {
-            const el = document.getElementById('global-message');
-            el.textContent = msg;
-            el.className = `p-3 rounded mt-4 text-white font-bold`;
-            el.style.display = 'block';
-
-            if (tipo === 'alert-danger') {
-                el.classList.add('bg-alert-danger');
-            } else if (tipo === 'accent-success') {
-                el.classList.add('bg-accent-success');
-            } else {
-                el.classList.add('bg-secondary-accent');
-            }
-
-            setTimeout(() => el.style.display = 'none', 5000);
-        }
-    </script>
+        if (resp.ok) {
+          mostrarMensagem(json.message || 'Atraso salvo com sucesso', 'success');
+          document.getElementById('form').reset();
+        } else {
+          console.error(json);
+          mostrarMensagem(json.error || 'Erro ao salvar atraso', 'danger');
+        }
+      } catch (e) {
+        console.error(e);
+        mostrarMensagem('Erro de rede ao salvar', 'danger');
+      }
+    }
+  </script>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen">
-    <div class="w-full max-w-2xl flex-grow p-4">
-        <h1 class="text-3xl font-extrabold mb-6 text-center text-secondary-accent">Registro de Atraso (Status PA/PAS)</h1>
-        
-        <div id="global-message" style="display: none;"></div>
+<body class="bg-dark-primary min-h-screen p-8 text-text-light">
+  <div id="mensagem-status" class="hidden"></div>
 
-        <form id="form-atraso" class="bg-dark-secondary p-8 rounded-xl shadow-2xl space-y-6">
-            <h3 class="text-xl font-bold border-b border-gray-600 pb-3 text-accent-success">Dados do Atraso</h3>
+  <div class="max-w-4xl mx-auto">
+    <header class="text-center mb-8 mt-4">
+      <h1 class="text-2xl font-light border-b border-gray-700 pb-2 inline-block">
+        SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR
+      </h1><br>
+      <h2 class="text-lg font-light border-b border-gray-700 pb-2 inline-block">
+        GESTÃO DE FREQUÊNCIA - ATRASO
+      </h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="select-sala" class="block text-sm font-medium text-gray-300 mb-1">Sala:</label>
-                    <select id="select-sala" class="form-select" required></select>
-                </div>
-                <div>
-                    <label for="select-aluno" class="block text-sm font-medium text-gray-300 mb-1">Aluno:</label>
-                    <select id="select-aluno" class="form-select" required></select>
-                </div>
-            </div>
+      <button onclick="window.location.href='/gestao_frequencia'"
+        class="mt-4 px-4 py-2 text-sm rounded-lg border border-gray-600 hover:bg-gray-700 flex items-center mx-auto">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h7"/>
+        </svg> Voltar ao Menu
+      </button>
+    </header>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="input-data" class="block text-sm font-medium text-gray-300 mb-1">Data:</label>
-                    <input id="input-data" type="date" class="form-input" required>
-                </div>
-                <div>
-                    <label for="input-hora" class="block text-sm font-medium text-gray-300 mb-1">Hora do Atraso:</label>
-                    <input id="input-hora" type="time" class="form-input" required>
-                </div>
-            </div>
+    <main class="overflow-x-auto bg-dark-secondary rounded-xl shadow-2xl p-6">
+      <form id="form" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Sala</label>
+            <select id="sala" class="w-full p-3 bg-gray-800 rounded border border-gray-700"></select>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Aluno</label>
+            <select id="aluno" class="w-full p-3 bg-gray-800 rounded border border-gray-700"></select>
+          </div>
+        </div>
 
-            <div>
-                <label for="input-motivo" class="block text-sm font-medium text-gray-300 mb-1">Motivo:</label>
-                <textarea id="input-motivo" rows="2" class="form-input" placeholder="Motivo do atraso..." required></textarea>
-            </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Data</label>
+            <input id="data" type="date" class="w-full p-3 bg-gray-800 rounded border border-gray-700" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Hora do Atraso</label>
+            <input id="hora" type="time" class="w-full p-3 bg-gray-800 rounded border border-gray-700" />
+          </div>
+        </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="input-responsavel" class="block text-sm font-medium text-gray-300 mb-1">Responsável:</label>
-                    <input id="input-responsavel" type="text" class="form-input" placeholder="Nome do responsável" required>
-                </div>
-                <div>
-                    <label for="input-telefone" class="block text-sm font-medium text-gray-300 mb-1">Telefone:</label>
-                    <input id="input-telefone" type="tel" class="form-input" placeholder="(11) 99999-9999" required>
-                </div>
-            </div>
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Motivo</label>
+          <textarea id="motivo" rows="2" class="w-full p-3 bg-gray-800 rounded border border-gray-700"
+            placeholder="Descreva o motivo do atraso..."></textarea>
+        </div>
 
-            <button type="button" onclick="saveAtraso()" class="w-full bg-accent-success hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
-                Salvar Registro de Atraso
-            </button>
-        </form>
-    </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Responsável</label>
+            <input id="responsavel" type="text" class="w-full p-3 bg-gray-800 rounded border border-gray-700"
+              placeholder="Nome do responsável pelo aluno" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-300 mb-1">Telefone</label>
+            <input id="telefone" type="tel" class="w-full p-3 bg-gray-800 rounded border border-gray-700"
+              placeholder="(11) 99999-9999" />
+          </div>
+        </div>
+
+        <button type="button" id="btnSalvar"
+          class="mt-4 px-4 py-2 rounded-lg border border-gray-600 hover:bg-gray-700">
+          Salvar Atraso
+        </button>
+      </form>
+    </main>
+
+    <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+      <p class="text-base font-medium">DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES</p>
+      <p class="text-xs font-light">LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO</p>
+    </footer>
+  </div>
 </body>
 </html>
