@@ -1921,9 +1921,9 @@ def gerar_pdf_ocorrencias():
 
     try:
         # Buscar ocorrências no Supabase
-        # CORREÇÃO: 'tutor' alterado para 'tutor_nome'
+        # ATUALIZAÇÃO: Incluindo 'impressao_pdf' na consulta
         resp = supabase.table('ocorrencias').select(
-            "numero, data_hora, descricao, status, aluno_nome, sala_id, tutor_nome, atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao"
+            "numero, data_hora, descricao, status, aluno_nome, sala_id, tutor_nome, atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao, impressao_pdf"
         ).in_('numero', numeros).order('data_hora', desc=True).execute()
 
         ocorrencias = resp.data
@@ -1967,7 +1967,7 @@ def gerar_pdf_ocorrencias():
                     data = dt.strftime("%d/%m/%Y")
                     hora = dt.strftime("%H:%M:%S")
                 except:
-                     data, hora = 'N/A', 'N/A'
+                    data, hora = 'N/A', 'N/A'
             else:
                 data, hora = '', ''
             
@@ -1996,6 +1996,14 @@ def gerar_pdf_ocorrencias():
         pdf_buffer = io.BytesIO()
         pdf.output(pdf_buffer)
         pdf_buffer.seek(0)
+        
+        # LÓGICA DE ATUALIZAÇÃO NO SUPABASE APÓS SUCESSO DO PDF
+        if pdf_buffer.getbuffer().nbytes > 0:
+            # Marcando 'impressao_pdf' como True para os números da ocorrência
+            update_data = {"impressao_pdf": True}
+            supabase.table('ocorrencias').update(update_data).in_('numero', numeros).execute()
+            logging.info(f"Ocorrências {numeros} marcadas como impressas (impressao_pdf=True).")
+
 
         nome_arquivo = aluno_nome.replace(' ', '_') + "_ocorrencias.pdf"
         return send_file(
@@ -2006,7 +2014,8 @@ def gerar_pdf_ocorrencias():
         )
 
     except Exception as e:
-        return jsonify({"error": f"Falha ao gerar PDF: {str(e)}"}), 500
+        logging.exception("Falha ao gerar PDF ou atualizar status de impressão.")
+        return jsonify({"error": f"Falha ao gerar PDF ou registrar impressão: {str(e)}"}), 500
 
 
 # =========================================================
@@ -2015,6 +2024,7 @@ def gerar_pdf_ocorrencias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
