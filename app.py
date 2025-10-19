@@ -331,11 +331,14 @@ def api_agendamento_novo():
 
 @app.route("/api/salas")
 def api_salas():
-    """Busca salas - Versão do usuário (select id,nome)."""
-    resp = supabase.table("d_salas").select("id,nome").execute()
-    if resp.error:
-        return jsonify({"error": resp.error.message}), 500
-    return jsonify(resp.data)
+    """Busca salas (id e nome da sala)."""
+    try:
+        resp = supabase.table("d_salas").select("id,sala").execute()
+        if hasattr(resp, "error") and resp.error:
+            return jsonify({"error": str(resp.error)}), 500
+        return jsonify(resp.data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/frequencia")
 def api_frequencia():
@@ -1987,3 +1990,4 @@ if __name__ == '__main__':
     # Usando debug=True para corresponder à sua instrução mais recente,
     # embora o host/port deva ser usado para execução em ambientes como o Canvas
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
