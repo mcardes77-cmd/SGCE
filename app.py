@@ -937,32 +937,13 @@ def api_salvar_frequencia_massa():
         return jsonify({"error": f"Erro interno do servidor: {e}", "status": 500}), 500
 
 @app.route('/api/salvar_atraso', methods=['POST'])
-def api_salvar_atraso():
-    """Salva um registro de PA ou PAS, atualizando o status se necessário."""
-    data = request.json
-    required_fields = ['aluno_id', 'sala_id', 'data', 'hora', 'motivo']
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Dados incompletos: Aluno, Data, Hora e Motivo são obrigatórios."}, 400)
-    
-    aluno_id, sala_id = int(data['aluno_id']), int(data['sala_id'])
-    registro_data = data['data']
-    
+def salvar_atraso():
     try:
-        # 1. Busca o status atual
-        resp = supabase.table('f_frequencia').select('status, id').eq('aluno_id', aluno_id).eq('data', registro_data).maybe_single().execute()
-        current_status = resp.data['status'] if resp.data else None
-        
-        # 2. Determina o novo status combinado
-        novo_status = "PA"
-        if current_status == 'PS' or current_status == 'PAS': # Já tinha PS ou PAS
-            novo_status = 'PAS'
-        elif current_status == 'F': # Estava faltando, mas apareceu com atraso.
-            novo_status = 'PA'
-        elif current_status == 'P': # Estava presente. Vira PA.
-            novo_status = 'PA'
+        dados = request.get_json()
+        if not dados:
+            return jsonify({"error": "Nenhum dado recebido"}), 400
 
-        # 3. Prepara o registro (usa UPSERT)
-        registro = {
+        payload = {
             "aluno_id": aluno_id,
             "sala_id": sala_id,
             "data": registro_data,
@@ -972,60 +953,47 @@ def api_salvar_atraso():
             "telefone_atraso": data.get('telefone'),
             "status": novo_status
         }
-        
-        response = supabase.table('f_frequencia').upsert(registro, on_conflict='aluno_id, data').execute()
-        handle_supabase_response(response)
-        
-        return jsonify({"message": f"Registro de Atraso salvo com sucesso! Status: {novo_status}", "status": 201}), 201
+
+        response = supabase.table("f_frequencia").upsert(payload).execute()
+
+        if not response or not getattr(response, "data", None):
+            return jsonify({"error": "Falha ao salvar no Supabase"}), 500
+
+        return jsonify({"message": "Entrada Atrasada salva com sucesso."}), 200
+
     except Exception as e:
-        logging.error(f"Erro no Supabase ao salvar atraso: {e}")
-        return jsonify({"error": f"Erro interno do servidor: {e}", "status": 500}), 500
+        print(f"[ERROR] Erro no Supabase ao salvar saída antecipada: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/salvar_saida_antecipada', methods=['POST'])
-def api_salvar_saida_antecipada():
-    """Salva um registro de PS ou PAS, atualizando o status se necessário."""
-    data = request.json
-    required_fields = ['aluno_id', 'sala_id', 'data', 'hora', 'motivo']
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Dados incompletos: Aluno, Data, Hora e Motivo são obrigatórios."}, 400)
-        
-    aluno_id, sala_id = int(data['aluno_id']), int(data['sala_id'])
-    registro_data = data['data']
-
+def salvar_saida_antecipada():
     try:
-        # 1. Busca o status atual
-        resp = supabase.table('f_frequencia').select('status, id').eq('aluno_id', aluno_id).eq('data', registro_data).maybe_single().execute()
-        current_status = resp.data['status'] if resp.data else None
-        
-        # 2. Determina o novo status combinado
-        novo_status = "PS"
-        if current_status == 'PA' or current_status == 'PAS': # Já tinha PA ou PAS
-            novo_status = 'PAS'
-        elif current_status == 'F': # Estava faltando, mas saiu cedo (o que implica presença).
-            novo_status = 'PS'
-        elif current_status == 'P': # Estava presente. Vira PS.
-            novo_status = 'PS'
-        
-        # 3. Prepara o registro (usa UPSERT)
-        registro = {
-            "aluno_id": aluno_id,
-            "sala_id": sala_id,
-            "data": registro_data,
-            "hora_saida": data['hora'],
-            "motivo_saida": data['motivo'],
-            "responsavel_saida": data.get('responsavel'),
-            "telefone_saida": data.get('telefone'),
-            "status": novo_status
-        }
-        
-        response = supabase.table('f_frequencia').upsert(registro, on_conflict='aluno_id, data').execute()
-        handle_supabase_response(response)
-        
-        return jsonify({"message": f"Registro de Saída Antecipada salvo com sucesso! Status: {novo_status}", "status": 201}), 201
-    except Exception as e:
-        logging.error(f"Erro no Supabase ao salvar saída antecipada: {e}")
-        return jsonify({"error": f"Erro interno do servidor: {e}", "status": 500}), 500
+        dados = request.get_json()
+        if not dados:
+            return jsonify({"error": "Nenhum dado recebido"}), 400
 
+        payload = {
+            "aluno_id": dados.get("aluno_id"),
+            "sala_id": dados.get("sala_id"),
+            "data": dados.get("data"),
+            "hora_saida": dados.get("hora"),
+            "motivo_saida": dados.get("motivo"),
+            "responsavel_saida": dados.get("responsavel"),
+            "telefone_saida": dados.get("telefone"),
+            "status": "PSA"  # saída antecipada
+        }
+
+        response = supabase.table("f_frequencia").upsert(payload).execute()
+
+        if not response or not getattr(response, "data", None):
+            return jsonify({"error": "Falha ao salvar no Supabase"}), 500
+
+        return jsonify({"message": "Saída antecipada salva com sucesso."}), 200
+
+    except Exception as e:
+        print(f"[ERROR] Erro no Supabase ao salvar saída antecipada: {e}")
+        return jsonify({"error": str(e)}), 500
+        
 @app.route('/api/relatorio_frequencia_detalhada', methods=['GET'])
 def api_relatorio_frequencia_detalhada():
     """Gera o relatório de frequência detalhada por sala e mês/ano."""
@@ -2037,6 +2005,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
