@@ -1,232 +1,230 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Relatório de Frequência</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<style>
-  body { background-color: #0F172A; color: #F8FAFC; font-family: 'Inter', sans-serif; }
-  .btn { transition: all 0.2s ease-in-out; }
-  .btn:hover { filter: brightness(1.1); }
-  .modal-bg { background: rgba(0,0,0,0.6); }
-  table th, table td { text-align: center; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório de Frequência</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
 
-<body class="flex flex-col min-h-screen">
+  <!-- Cabeçalho -->
+  <header class="text-center py-6 border-b border-gray-700">
+    <h1 class="text-2xl sm:text-3xl font-bold text-yellow-400">SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR</h1>
+    <h2 class="text-lg sm:text-xl text-gray-300 mt-2">RELATÓRIO DE FREQUÊNCIA MENSAL</h2>
+  </header>
 
-<header class="w-full text-center py-6 bg-gray-900 shadow">
-  <h1 class="text-3xl font-extrabold text-accent tracking-wide">SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR</h1>
-  <h2 class="text-xl mt-1 font-light border-b border-gray-700 pb-2 inline-block">RELATÓRIO DE FREQUÊNCIA MENSAL</h2>
-  <div class="mt-4">
-    <button onclick="window.location.href='/gestao_frequencia'"
-      class="btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg">
+  <!-- Botão voltar -->
+  <div class="flex justify-center mt-4">
+    <a href="/gestao_ocorrencia" 
+       class="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-6 py-2 rounded-2xl transition">
       VOLTAR AO MENU
-    </button>
+    </a>
   </div>
-</header>
 
-<main class="flex-1 p-6">
-  <div class="bg-gray-800 rounded-xl shadow p-6 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-      <div>
-        <label class="block text-sm font-semibold mb-1">Sala</label>
-        <select id="salaSelect" class="w-full p-2 rounded bg-gray-900 text-white border border-gray-600"></select>
+  <!-- Filtros -->
+  <main class="flex-grow flex flex-col items-center p-4">
+    <div class="bg-gray-800 rounded-2xl shadow-lg p-6 w-full max-w-lg mt-6">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-gray-300 mb-1">Sala</label>
+          <select id="sala" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-gray-200"></select>
+        </div>
+
+        <div>
+          <label class="block text-gray-300 mb-1">Mês</label>
+          <select id="mes" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-gray-200">
+            <option value="1">Janeiro</option>
+            <option value="2">Fevereiro</option>
+            <option value="3">Março</option>
+            <option value="4">Abril</option>
+            <option value="5">Maio</option>
+            <option value="6">Junho</option>
+            <option value="7">Julho</option>
+            <option value="8">Agosto</option>
+            <option value="9">Setembro</option>
+            <option value="10" selected>Outubro</option>
+            <option value="11">Novembro</option>
+            <option value="12">Dezembro</option>
+          </select>
+        </div>
+
+        <button onclick="visualizarFrequencia()"
+                class="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold py-2 rounded-lg transition">
+          Visualizar Frequência
+        </button>
+
+        <div id="erro" class="text-red-500 text-center mt-2 hidden">
+          Erro ao carregar os dados. Verifique o console.
+        </div>
       </div>
-      <div>
-        <label class="block text-sm font-semibold mb-1">Mês</label>
-        <select id="mesSelect" class="w-full p-2 rounded bg-gray-900 text-white border border-gray-600"></select>
-      </div>
-      <button id="btnVisualizar" class="btn bg-yellow-400 text-gray-900 font-bold py-2 px-4 rounded-lg">
-        Visualizar Frequência
+    </div>
+
+    <!-- Tabela -->
+    <div id="tabela-frequencia" class="mt-8 w-full max-w-6xl overflow-x-auto"></div>
+  </main>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 bg-black bg-opacity-70 hidden justify-center items-center">
+    <div class="bg-gray-800 p-6 rounded-2xl shadow-lg w-11/12 max-w-md">
+      <h3 class="text-lg font-bold text-yellow-400 mb-3">Detalhes do Registro</h3>
+      <div id="modal-conteudo" class="text-gray-200 space-y-1"></div>
+      <button onclick="fecharModal()" 
+              class="mt-4 w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 rounded-lg">
+        Fechar
       </button>
     </div>
   </div>
 
-  <div id="tabelaContainer" class="overflow-x-auto bg-gray-800 rounded-xl shadow p-4">
-    <p class="text-center text-gray-400">Selecione sala e mês para visualizar frequência.</p>
-  </div>
-</main>
+  <!-- Rodapé -->
+  <footer class="text-center text-xs text-gray-400 py-4 border-t border-gray-700 mt-auto">
+    DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES<br>
+    LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
+  </footer>
 
-<div id="modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
-  <div class="modal-bg absolute inset-0"></div>
-  <div class="bg-gray-800 max-w-lg w-full p-6 rounded-xl z-60 relative shadow-lg border border-gray-700">
-    <button onclick="fecharModal()" class="absolute top-2 right-3 text-gray-400 hover:text-red-600">✕</button>
-    <h2 class="text-lg font-semibold mb-2 text-yellow-400">Detalhes do Registro</h2>
-    <div id="modalContent" class="text-sm text-gray-300 space-y-1"></div>
-    <button id="btnPDF" class="mt-4 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 w-full">Gerar PDF</button>
-  </div>
-</div>
+  <script>
+    document.addEventListener("DOMContentLoaded", carregarSalas);
 
-<footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
-  <p class="mb-1 font-medium">DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES</p>
-  <p class="font-light tracking-wide text-xs">LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO</p>
-</footer>
+    async function carregarSalas() {
+      try {
+        const response = await fetch("/api/salas");
+        const salas = await response.json();
 
-<script>
-const feriadosFixos = ["2025-10-27", "2025-11-20"];
-let ultimoRegistro = null;
-let salaAtual = null;
+        const select = document.getElementById("sala");
+        select.innerHTML = "<option value=''>Selecione uma sala</option>";
 
-async function carregarSalas() {
-  try {
-    const resp = await fetch('/api/salas');
-    const salas = await resp.json();
-    const select = document.getElementById('salaSelect');
-    select.innerHTML = '<option value="">Selecione...</option>';
-    salas.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.nome;
-      select.appendChild(opt);
-    });
-  } catch {
-    alert("Erro ao carregar salas. Verifique o servidor.");
-  }
-}
-
-function carregarMeses() {
-  const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  const sel = document.getElementById('mesSelect');
-  sel.innerHTML = '<option value="">Selecione...</option>';
-  meses.forEach((m,i) => {
-    const opt = document.createElement('option');
-    opt.value = i+1;
-    opt.textContent = m;
-    sel.appendChild(opt);
-  });
-}
-
-async function visualizar() {
-  const sala = document.getElementById('salaSelect').value;
-  const mes = document.getElementById('mesSelect').value;
-  if (!sala || !mes) return alert("Selecione sala e mês!");
-  salaAtual = sala;
-  
-  try {
-    const resp = await fetch(`/api/frequencia?sala=${sala}&mes=${mes}`);
-    if (!resp.ok) {
-      const error = await resp.json();
-      throw new Error(error.error || 'Erro ao carregar frequência.');
+        salas.forEach(sala => {
+          const option = document.createElement("option");
+          option.value = sala.id;
+          option.textContent = sala.nome || sala.descricao || `Sala ${sala.id}`;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error("Erro ao carregar salas:", error);
+        document.getElementById("erro").classList.remove("hidden");
+      }
     }
-    const dados = await resp.json();
-    montarTabela(dados, mes);
-  } catch (error) {
-    alert("Erro ao carregar frequência: " + error.message);
-    console.error(error);
-    document.getElementById('tabelaContainer').innerHTML = 
-        '<div class="text-center p-4 text-red-400">Erro ao carregar os dados. Verifique o console.</div>';
-  }
-}
 
-function montarTabela(dados, mes) {
-  const container = document.getElementById('tabelaContainer');
-  container.innerHTML = '';
-  
-  if (!dados || dados.length === 0) {
-    container.innerHTML = '<div class="text-center p-4 text-gray-400">Nenhum dado de frequência encontrado.</div>';
-    return;
-  }
+    async function visualizarFrequencia() {
+      const salaId = document.getElementById("sala").value;
+      const mes = document.getElementById("mes").value;
 
-  const dias = [];
-  const ano = 2025;
-  const totalDias = new Date(ano, mes, 0).getDate();
-  for (let d = 1; d <= totalDias; d++) {
-    const data = dayjs(`${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
-    const diaSemana = data.day();
-    if (diaSemana !== 0 && diaSemana !== 6 && !feriadosFixos.includes(data.format("YYYY-MM-DD"))) dias.push(data);
-  }
+      if (!salaId || !mes) {
+        alert("Selecione uma sala e um mês!");
+        return;
+      }
 
-  let html = `<table class="min-w-full border text-center text-sm">
-    <thead class="bg-gray-700"><tr><th class="border px-2 py-1">Aluno</th>`;
-  dias.forEach(d => html += `<th class="border px-2 py-1">${d.format('DD')}</th>`);
-  html += `</tr></thead><tbody>`;
+      try {
+        const res = await fetch(`/api/frequencia?sala_id=${salaId}&mes=${mes}`);
+        const data = await res.json();
 
-  dados.forEach(aluno => {
-    html += `<tr><td class="border px-2 py-1 font-semibold text-left">${aluno.nome}</td>`;
-    dias.forEach(d => {
-      const dataKey = d.format("YYYY-MM-DD");
-      const freq = aluno.frequencia?.[dataKey] || "";
-      let cor = "text-gray-400";
-      const click = ["PA","PS","PSA"].includes(freq) ? 
-        `onclick="abrirModalDetalhe('${aluno.id}','${dataKey}','${mes}')" style="cursor:pointer; text-decoration:underline;"` : "";
-      if (freq === "P") cor = "text-green-500 font-bold";
-      if (freq === "F") cor = "text-red-500 font-bold";
-      if (["PA","PS","PSA"].includes(freq)) cor = "text-yellow-400 font-bold";
-      html += `<td class="border px-2 py-1 ${cor}" ${click}>${freq}</td>`;
-    });
-    html += `</tr>`;
-  });
+        if (data.error) throw new Error(data.error);
 
-  html += `</tbody></table>`;
-  container.innerHTML = html;
-}
-
-async function abrirModalDetalhe(alunoId, data, mes) {
-  document.getElementById('modal').classList.remove('hidden');
-  const modalContent = document.getElementById('modalContent');
-  modalContent.innerHTML = `<p>Carregando detalhes...</p>`;
-  
-  if (!salaAtual) {
-    modalContent.innerHTML = `<p class="text-red-600">Erro: ID da sala ausente. Recarregue a frequência.</p>`;
-    return;
-  }
-
-  try {
-    const resp = await fetch(`/api/detalhe_frequencia?aluno_id=${alunoId}&data=${data}&mes=${mes}&sala_id=${salaAtual}`);
-    if (!resp.ok) {
-      const error = await resp.json();
-      return modalContent.innerHTML = `<p class="text-red-600">${error.erro || 'Erro ao carregar detalhes.'}</p>`;
+        document.getElementById("erro").classList.add("hidden");
+        renderizarTabelaFrequencia(data, mes);
+      } catch (error) {
+        console.error("Erro ao carregar frequência:", error);
+        document.getElementById("erro").classList.remove("hidden");
+      }
     }
-    const info = await resp.json();
-    ultimoRegistro = info;
-    modalContent.innerHTML = `
-      <p><strong>Aluno:</strong> ${info.nome}</p>
-      <p><strong>Data:</strong> ${dayjs(info.data).format('DD/MM/YYYY')}</p>
-      <p><strong>Tipo:</strong> ${info.tipo_registro}</p>
-      <hr class="my-2">
-      <h3 class="font-semibold text-green-500">Atraso</h3>
-      <p><strong>Hora:</strong> ${info.hora_atraso||'-'}</p>
-      <p><strong>Motivo:</strong> ${info.motivo_atraso||'-'}</p>
-      <p><strong>Responsável:</strong> ${info.responsavel_atraso||'-'}</p>
-      <p><strong>Documento:</strong> ${info.documento_atraso||'-'}</p>
-      <hr class="my-2">
-      <h3 class="font-semibold text-yellow-500">Saída Antecipada</h3>
-      <p><strong>Hora:</strong> ${info.hora_saida||'-'}</p>
-      <p><strong>Motivo:</strong> ${info.motivo_saida||'-'}</p>
-      <p><strong>Responsável:</strong> ${info.responsavel_saida||'-'}</p>
-      <p><strong>Documento:</strong> ${info.documento_saida||'-'}</p>
-      <hr class="my-2">
-      <p><strong>Observação:</strong> ${info.observacao||'Nenhuma registrada'}</p>`;
-  } catch (error) {
-    console.error(error);
-    modalContent.innerHTML = `<p class="text-red-600">Erro ao carregar detalhes.</p>`;
-  }
-}
 
-function fecharModal() { document.getElementById('modal').classList.add('hidden'); }
+    function renderizarTabelaFrequencia(frequencias, mes) {
+      const container = document.getElementById("tabela-frequencia");
+      container.innerHTML = "";
 
-document.getElementById('btnVisualizar').addEventListener('click', visualizar);
-document.getElementById('btnPDF').addEventListener('click', () => {
-  if (!ultimoRegistro) return alert("Nenhum registro para gerar PDF.");
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  
-  doc.setFontSize(14);
-  doc.text("Relatório de Frequência", 105, 15, { align: "center" });
-  doc.setFontSize(12);
-  doc.text(`Aluno: ${ultimoRegistro.nome}`, 15, 30);
-  doc.text(`Data: ${dayjs(ultimoRegistro.data).format('DD/MM/YYYY')}`, 15, 38);
-  doc.text(`Tipo: ${ultimoRegistro.tipo_registro}`, 15, 46);
-  
-  doc.save(`frequencia_${ultimoRegistro.nome}_${ultimoRegistro.data}.pdf`);
-});
+      const diasUteis = gerarDiasUteis(mes);
+      const alunos = agruparPorAluno(frequencias);
 
-carregarSalas();
-carregarMeses();
-</script>
+      let tabela = `
+        <table class="min-w-full border border-gray-600 text-center text-sm text-gray-200">
+          <thead class="bg-gray-800 text-yellow-400">
+            <tr>
+              <th class="border border-gray-600 px-2 py-1">Aluno</th>
+              ${diasUteis.map(d => `<th class="border border-gray-600 px-2 py-1">${d.getDate()}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      for (const alunoId in alunos) {
+        const alunoFrequencias = alunos[alunoId];
+        tabela += `<tr><td class="border border-gray-600 px-2 py-1 text-left">${alunoFrequencias.nome || alunoId}</td>`;
+
+        diasUteis.forEach(dia => {
+          const registro = alunoFrequencias.registros.find(r => r.data === dia.toISOString().split("T")[0]);
+          let conteudo = "";
+          let cor = "";
+
+          if (registro) {
+            if (registro.status === "P") cor = "bg-green-600 text-white";
+            else if (registro.status === "F") cor = "bg-red-600 text-white";
+            else if (["PA", "PS", "PSA"].includes(registro.status)) {
+              cor = "bg-yellow-500 text-black cursor-pointer";
+              conteudo = `<a onclick="abrirModal('${JSON.stringify(registro).replace(/"/g, '&quot;')}')">${registro.status}</a>`;
+            }
+            if (!conteudo) conteudo = registro.status;
+          }
+
+          tabela += `<td class="border border-gray-600 px-2 py-1 ${cor}">${conteudo || ""}</td>`;
+        });
+
+        tabela += `</tr>`;
+      }
+
+      tabela += "</tbody></table>";
+      container.innerHTML = tabela;
+    }
+
+    function gerarDiasUteis(mes) {
+      const ano = 2025;
+      const dias = [];
+      const feriados = ["2025-10-27", "2025-11-20"];
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+
+      for (let d = 1; d <= ultimoDia; d++) {
+        const data = new Date(ano, mes - 1, d);
+        const diaSemana = data.getDay();
+        const dataStr = data.toISOString().split("T")[0];
+        if (diaSemana !== 0 && diaSemana !== 6 && !feriados.includes(dataStr)) {
+          dias.push(data);
+        }
+      }
+      return dias;
+    }
+
+    function agruparPorAluno(frequencias) {
+      const alunos = {};
+      frequencias.forEach(f => {
+        if (!alunos[f.fk_aluno_id]) {
+          alunos[f.fk_aluno_id] = { nome: f.nome_aluno || `Aluno ${f.fk_aluno_id}`, registros: [] };
+        }
+        alunos[f.fk_aluno_id].registros.push({
+          data: f.created_at.split("T")[0],
+          status: f.status,
+          ...f
+        });
+      });
+      return alunos;
+    }
+
+    function abrirModal(infoStr) {
+      const info = JSON.parse(infoStr);
+      const conteudo = document.getElementById("modal-conteudo");
+      conteudo.innerHTML = `
+        <p><strong>Status:</strong> ${info.status}</p>
+        ${info.hora_atraso ? `<p><strong>Hora Atraso:</strong> ${info.hora_atraso}</p>` : ""}
+        ${info.motivo_atraso ? `<p><strong>Motivo Atraso:</strong> ${info.motivo_atraso}</p>` : ""}
+        ${info.hora_saida ? `<p><strong>Hora Saída:</strong> ${info.hora_saida}</p>` : ""}
+        ${info.motivo_saida ? `<p><strong>Motivo Saída:</strong> ${info.motivo_saida}</p>` : ""}
+      `;
+      document.getElementById("modal").classList.remove("hidden");
+      document.getElementById("modal").classList.add("flex");
+    }
+
+    function fecharModal() {
+      document.getElementById("modal").classList.add("hidden");
+      document.getElementById("modal").classList.remove("flex");
+    }
+  </script>
 </body>
 </html>
