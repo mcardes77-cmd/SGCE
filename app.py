@@ -342,98 +342,104 @@ def api_salas():
 
 @app.route("/api/frequencia")
 def api_frequencia():
-    """Busca frequência detalhada por sala e mês - Versão do usuário."""
-    sala_id = request.args.get("sala")
-    mes = request.args.get("mes")
-    if not sala_id or not mes:
-        return jsonify({"error": "sala e mes são obrigatórios"}), 400
-
     try:
-        mes_int = int(mes)
-        ano = datetime.now().year
-    except ValueError:
-        return jsonify({"error": "Mês inválido"}), 400
+        sala_id = request.args.get("sala")
+        mes = request.args.get("mes")
 
-    try:
-        # Consulta alunos da sala
-        alunos_resp = supabase.table("d_alunos").select("id,nome").eq("sala_id", sala_id).execute()
-        if alunos_resp.error:
-            return jsonify({"error": alunos_resp.error.message}), 500
+        if not sala_id or not mes:
+            return jsonify({"error": "Parâmetros 'sala' e 'mes' são obrigatórios"}), 400
 
-        alunos = alunos_resp.data
+        # Buscar os alunos da sala
+        alunos_resp = supabase.table("d_alunos").select("id, nome").eq("sala_id", sala_id).execute()
+        alunos = alunos_resp.data or []
 
-        # Busca registros de frequência para todos os alunos no período (otimização para o Supabase)
-        aluno_ids = [aluno["id"] for aluno in alunos]
-        
-        # Filtro por mês/ano (tentativa de otimização no Python, mas mantendo a estrutura do usuário)
-        # O filtro de data será feito em memória conforme a lógica original do usuário, mas corrigindo a falha anterior
-        
-        freq_resp = supabase.table("f_frequencia").select("*").in_("aluno_id", aluno_ids).execute()
-        if freq_resp.error:
-            return jsonify({"error": freq_resp.error.message}), 500
-        
-        frequencias_raw = freq_resp.data or []
-        
-        # Mapeia frequências por aluno_id e data
-        frequencias_map = {}
-        for f in frequencias_raw:
-            data_registro = f.get("data_registro")
-            if data_registro:
-                try:
-                    dt = datetime.fromisoformat(data_registro.replace('Z', '+00:00'))
-                    if dt.month == mes_int and dt.year == ano:
-                        aluno_id = f.get("aluno_id")
-                        data_key = dt.strftime("%Y-%m-%d")
-                        if aluno_id not in frequencias_map:
-                            frequencias_map[aluno_id] = {}
-                        frequencias_map[aluno_id][data_key] = f.get("status_agendamento") or "P"
-                except Exception:
-                    logging.warning(f"Data de registro inválida ou mal formatada: {data_registro}")
+        if not alunos:
+            return jsonify([])
 
+        # Buscar registros de frequência no mês e sala
+        freq_resp = supabase.table("f_frequencia") \
+            .select("aluno_id, data_registro, status") \
+            .eq("sala_id", sala_id) \
+            .execute()
 
-        # Constrói o resultado final
+        frequencias = freq_resp.data or []
+
+        # Montar estrutura agregada por aluno
         resultado = []
         for aluno in alunos:
+            aluno_freq = {f["data_registro"]: f["status"] for f in frequencias if f["aluno_id"] == aluno["id"]}
             resultado.append({
                 "id": aluno["id"],
                 "nome": aluno["nome"],
-                "frequencia": frequencias_map.get(aluno["id"], {})
+                "frequencia": aluno_freq
             })
 
         return jsonify(resultado)
+
     except Exception as e:
+        import traceback
+        print("Erro /api/frequencia:", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/detalhe_frequencia")
+    @app.route("/api/detalhe_frequencia")
 def api_detalhe_frequencia():
-    """Busca detalhe de frequência por aluno e data - Versão do usuário."""
-    aluno_id = request.args.get("aluno_id")
-    data = request.args.get("data")
-    sala_id = request.args.get("sala_id") # Mantido, mas não usado na query, conforme o usuário
-    mes = request.args.get("mes") # Mantido, mas não usado na query, conforme o usuário
-
-    if not all([aluno_id, data, sala_id, mes]):
-        return jsonify({"erro": "Parâmetros obrigatórios ausentes"}), 400
-
+    """
+    Retorna os detalhes da frequência de um aluno em um dia específico.
+    Parâmetros:
+      aluno_id, data, mes, sala_id
+    """
     try:
-        # Consulta detalhada da frequência (usando data_registro como filtro de data)
-        resp = supabase.table("f_frequencia").select("*").eq("aluno_id", aluno_id).eq("data_registro", data).execute()
-        
-        if resp.error:
-            return jsonify({"erro": resp.error.message}), 500
+        aluno_id = request.args.get("aluno_id")
+        data = request.args.get("data")
+        mes = request.args.get("mes")
+        sala_id = request.args.get("sala_id")
 
-        if not resp.data:
-            return jsonify({"erro": "Registro não encontrado"}), 404
+        if not all([aluno_id, data, mes, sala_id]):
+            return jsonify({"error": "Parâmetros obrigatórios ausentes"}), 400
 
-        registro = resp.data[0]
+        # Buscar informações do aluno
+        aluno_resp = supabase.table("d_alunos").select("id, nome").eq("id", aluno_id).execute()
+        if not aluno_resp.data:
+            return jsonify({"error": "Aluno não encontrado"}), 404
 
-        # Inclui nome do aluno (Busca adicional conforme o usuário)
-        aluno_resp = supabase.table("d_alunos").select("nome").eq("id", aluno_id).execute()
-        registro["nome"] = aluno_resp.data[0]["nome"] if aluno_resp.data else "Desconhecido"
+        aluno = aluno_resp.data[0]
 
-        return jsonify(registro)
+        # Buscar o registro de frequência
+        freq_resp = (
+            supabase.table("f_frequencia")
+            .select("id, aluno_id, sala_id, data_registro, status, observacao, tipo_registro")
+            .eq("aluno_id", aluno_id)
+            .eq("sala_id", sala_id)
+            .eq("data_registro", data)
+            .execute()
+        )
+
+        if not freq_resp.data:
+            return jsonify({"error": "Nenhum registro encontrado"}), 404
+
+        freq = freq_resp.data[0]
+
+        # Buscar nome da sala (opcional)
+        sala_resp = supabase.table("d_salas").select("sala").eq("id", sala_id).execute()
+        nome_sala = sala_resp.data[0]["sala"] if sala_resp.data else "-"
+
+        # Montar resposta detalhada
+        detalhe = {
+            "id": freq["id"],
+            "nome": aluno["nome"],
+            "sala": nome_sala,
+            "data_registro": freq["data_registro"],
+            "status": freq.get("status", "-"),
+            "tipo_registro": freq.get("tipo_registro", "-"),
+            "observacao": freq.get("observacao", "-")
+        }
+
+        return jsonify(detalhe)
+
     except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+        import traceback
+        print("Erro /api/detalhe_frequencia:", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/funcionarios', methods=['GET'])
 def api_get_funcionarios():
@@ -1990,4 +1996,5 @@ if __name__ == '__main__':
     # Usando debug=True para corresponder à sua instrução mais recente,
     # embora o host/port deva ser usado para execução em ambientes como o Canvas
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
