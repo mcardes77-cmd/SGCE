@@ -325,59 +325,6 @@ def api_agendamento_novo():
 
 # --- ROTAS DE FREQUÊNCIA (CORRIGIDAS/SOLICITADAS) ---
 
-@app.route("/api/frequencia")
-def api_frequencia():
-    """Busca frequência detalhada por sala e mês (f_frequencia)."""
-    sala_id = request.args.get("sala")
-    mes = request.args.get("mes")
-    if not sala_id or not mes:
-        return jsonify({"error": "sala e mes são obrigatórios"}), 400
-
-    try:
-        mes_int = int(mes)
-        ano = datetime.now().year
-    except ValueError:
-        return jsonify({"error": "Mês inválido"}), 400
-
-    try:
-        alunos_resp = supabase.table("d_alunos").select("id,nome").eq("sala_id", sala_id).execute()
-        if alunos_resp.error:
-            return jsonify({"error": alunos_resp.error.message}), 500
-        alunos = alunos_resp.data
-        aluno_ids = [aluno["id"] for aluno in alunos]
-        
-        freq_resp = supabase.table("f_frequencia").select("*").in_("aluno_id", aluno_ids).execute()
-        if freq_resp.error:
-            return jsonify({"error": freq_resp.error.message}), 500
-        frequencias_raw = freq_resp.data or []
-        
-        frequencias_map = {}
-        for f in frequencias_raw:
-            data_registro = f.get("data_registro")
-            if data_registro:
-                try:
-                    dt = datetime.fromisoformat(data_registro.replace('Z', '+00:00'))
-                    if dt.month == mes_int and dt.year == ano:
-                        aluno_id = f.get("aluno_id")
-                        data_key = dt.strftime("%Y-%m-%d")
-                        if aluno_id not in frequencias_map:
-                            frequencias_map[aluno_id] = {}
-                        frequencias_map[aluno_id][data_key] = f.get("status_agendamento") or "P"
-                except Exception:
-                    logging.warning(f"Data de registro inválida ou mal formatada: {data_registro}")
-
-        resultado = []
-        for aluno in alunos:
-            resultado.append({
-                "id": aluno["id"],
-                "nome": aluno["nome"],
-                "frequencia": frequencias_map.get(aluno["id"], {})
-            })
-
-        return jsonify(resultado)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route("/api/detalhe_frequencia")
 def api_detalhe_frequencia():
     """Busca detalhe de frequência por aluno e data (f_frequencia)."""
@@ -1971,6 +1918,7 @@ def salvar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
