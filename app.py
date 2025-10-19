@@ -261,17 +261,6 @@ def gestao_cadastro_vincular_disciplina_sala():
 # ROTAS DE API (DADOS)
 # =========================================================
 
-# ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
-@app.route("/api/salas")
-def api_salas():
-    """Busca salas - versão simplificada (apenas id e nome)."""
-    try:
-        res = supabase.table("d_salas").select("id,sala").execute()
-        return jsonify(res.data)
-    except Exception as e:
-        return jsonify({"error": f"Erro ao buscar salas: {e}", "status": 500}), 500
-
-
 @app.route('/api/funcionarios', methods=['GET'])
 def api_get_funcionarios():
     try:
