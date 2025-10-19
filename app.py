@@ -1875,9 +1875,39 @@ def gerar_pdf_ocorrencias():
         logging.exception("Falha ao gerar PDF ou atualizar status de impressão.")
         return jsonify({"error": f"Falha ao gerar PDF ou registrar impressão: {str(e)}"}), 500
 
+@app.route("/api/salvar_atendimento", methods=["POST"])
+def salvar_atendimento():
+    data = request.get_json()
+
+    try:
+        numero = data.get("id")
+        nivel = data.get("nivel")
+        texto = data.get("texto")
+
+        if not numero or not nivel or not texto:
+            return jsonify({"error": "Dados incompletos."}), 400
+
+        campo = f"atendimento_{nivel}"  # tutor, coordenacao ou gestao
+
+        # Atualiza o campo correto no Supabase
+        response = supabase.table("f_ocorrencias").update({
+            campo: texto
+        }).eq("id", numero).execute()
+
+        if response.data:
+            return jsonify({"message": "Atendimento salvo com sucesso!"}), 200
+        else:
+            return jsonify({"error": "Falha ao atualizar ocorrência."}), 500
+
+    except Exception as e:
+        print("Erro salvar atendimento:", e)
+        return jsonify({"error": str(e)}), 500
+
+
 # =========================================================
 # EXECUÇÃO
 # =========================================================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
