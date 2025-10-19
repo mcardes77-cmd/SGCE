@@ -1,489 +1,213 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lançamento de Notas de Tutoria</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lançamento de Notas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-        // Variáveis globais de ambiente (Ajuste conforme seu ambiente de Firebase)
-        const appId = 'default-app-id'; // Use o ID real
-        const firebaseConfig = null; // Use a config real
-        const initialAuthToken = null;
+const SUPABASE_URL = 'https://SEU_PROJETO.supabase.co';
+const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        let app, db, auth;
-        window.db = null;
-        window.userId = null;
-        
-        // =======================================================
-        // MOCK DE DADOS - TUTORES, ALUNOS, DISCIPLINAS E NOTAS
-        // =======================================================
-        const tutoresMOCK = [
-            { nome: 'Prof. Ana Mendes', id: 'ana' },
-            { nome: 'Prof. Bruno Souza', id: 'bruno' },
-            { nome: 'Prof. Carla Lima', id: 'carla' },
-        ];
+let selectedAlunoId = null;
+let selectedBimestre = null;
 
-        const alunosPorTutorMOCK = {
-            'ana': [
-                { nome: 'Ana Silva (6º A)', id: 'ana_silva' },
-                { nome: 'Carlos Dias (7º B)', id: 'carlos_dias' },
-            ],
-            'bruno': [
-                { nome: 'Daniela Lima (7º B)', id: 'daniela_lima' },
-                { nome: 'Eduardo Reis (8º C)', id: 'eduardo_reis' },
-            ],
-            'carla': [
-                { nome: 'Gabriela Cruz (6º A)', id: 'gabriela_cruz' },
-            ]
-        };
-        
-        const disciplinasMOCK = [
-            'Português', 'Matemática', 'Ciências', 'História', 'Geografia', 
-            'Arte', 'Educação Física', 'Inglês', 'Eletiva', 'Projeto de Vida'
-        ];
-        
-        // Simulação do banco de dados de notas (o objeto completo por aluno)
-        const notasMOCK = {
-            'ana_silva': {
-                'Português': { B1: 8.0, B2: 7.5, B3: 0.0, B4: 0.0 },
-                'Matemática': { B1: 6.5, B2: 7.0, B3: 0.0, B4: 0.0 },
-                'Ciências': { B1: 9.0, B2: 8.5, B3: 0.0, B4: 0.0 },
-                'História': { B1: 7.0, B2: 6.0, B3: 0.0, B4: 0.0 },
-                'Geografia': { B1: 8.5, B2: 8.0, B3: 0.0, B4: 0.0 },
-                'Arte': { B1: 9.0, B2: 9.0, B3: 0.0, B4: 0.0 },
-                'Educação Física': { B1: 7.0, B2: 7.0, B3: 0.0, B4: 0.0 },
-                'Inglês': { B1: 8.0, B2: 8.0, B3: 0.0, B4: 0.0 },
-                'Eletiva': { B1: 9.5, B2: 9.5, B3: 0.0, B4: 0.0 },
-                'Projeto de Vida': { B1: 10.0, B2: 10.0, B3: 0.0, B4: 0.0 },
-            },
-            'carlos_dias': {
-                 'Português': { B1: 5.0, B2: 0.0, B3: 0.0, B4: 0.0 },
-                'Matemática': { B1: 4.0, B2: 0.0, B3: 0.0, B4: 0.0 },
-            },
-        };
+// ===============================
+// CARREGAR TUTORES
+// ===============================
+async function loadTutores() {
+    const selectTutor = document.getElementById('filter-tutor');
+    selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
 
-        let selectedAlunoId = null;
-        let selectedBimestre = null;
+    const { data: tutores, error } = await supabase.from('d_tutores').select('id,nome');
+    if (error) { console.error(error); return; }
 
-        // Inicialização do Firebase (Padrão) - Comentado para evitar erro em ambiente sem Firebase
-        /*
-        async function initializeFirebase() {
-            if (!firebaseConfig) return;
-            try {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                window.db = db;
-                
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                window.userId = auth.currentUser?.uid || 'anonymous-user';
+    tutores.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(tutor=>{
+        const option = document.createElement('option');
+        option.value = tutor.id;
+        option.textContent = tutor.nome;
+        selectTutor.appendChild(option);
+    });
+    loadAlunos();
+}
 
-                loadTutores();
+// ===============================
+// CARREGAR ALUNOS POR TUTOR
+// ===============================
+async function loadAlunos() {
+    const tutorId = document.getElementById('filter-tutor').value;
+    const selectAluno = document.getElementById('filter-aluno');
+    selectedAlunoId = null;
 
-            } catch (error) {
-                console.error("Erro ao inicializar Firebase ou autenticar:", error);
-                mostrarMensagem('Erro ao conectar com o sistema.', 'danger');
-            }
+    selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
+    selectAluno.disabled = !tutorId;
+    document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
+    document.getElementById('salvar-notas-button').disabled = true;
+
+    if (!tutorId) return;
+
+    const { data: alunos, error } = await supabase.from('d_alunos').select('id,nome').eq('tutor_id', tutorId);
+    if (error) { console.error(error); return; }
+
+    alunos.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(aluno=>{
+        const option = document.createElement('option');
+        option.value = aluno.id;
+        option.textContent = aluno.nome;
+        selectAluno.appendChild(option);
+    });
+}
+
+// ===============================
+// HABILITAR BIMESTRE AO SELECIONAR ALUNO
+// ===============================
+function enableBimestre() {
+    const alunoId = document.getElementById('filter-aluno').value;
+    selectedAlunoId = alunoId;
+    const selectBimestre = document.getElementById('filter-bimestre');
+    selectBimestre.disabled = !alunoId;
+    document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
+    document.getElementById('salvar-notas-button').disabled = true;
+    if (alunoId && selectBimestre.value) loadGradesTable();
+}
+
+// ===============================
+// CARREGAR TABELA DE NOTAS
+// ===============================
+async function loadGradesTable() {
+    const alunoId = document.getElementById('filter-aluno').value;
+    const selectedBim = document.getElementById('filter-bimestre').value;
+    selectedBimestre = selectedBim;
+    const tableBody = document.getElementById('grades-table-body');
+    tableBody.innerHTML = '';
+    if (!alunoId || !selectedBim) return;
+
+    const bField = `B${selectedBim}`;
+
+    // Buscar notas do aluno no Supabase
+    const { data: notasData, error } = await supabase
+        .from('f_frequencia')
+        .select('notas')
+        .eq('aluno_id', alunoId)
+        .order('data_registro', { ascending: false })
+        .limit(1)
+        .single();
+
+    const disciplinas = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Arte', 'Educação Física', 'Inglês', 'Eletiva', 'Projeto de Vida'];
+    const notas = notasData?.notas || {};
+
+    disciplinas.forEach(disc=>{
+        const grades = notas[disc] || { B1: 0, B2: 0, B3:0, B4:0 };
+        let row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50">
+                    <td class="p-3 font-semibold text-text-light">${disc}</td>`;
+        for (let i=1;i<=4;i++){
+            const field = `B${i}`;
+            const isEditable = field === bField;
+            const value = grades[field]>0 ? grades[field].toFixed(1) : '';
+            row += `<td class="p-2">
+                        <input type="number" step="0.1" min="0" max="10"
+                            id="nota-${disc.replace(/\s/g,'_')}-${field}"
+                            value="${value}"
+                            class="${isEditable?'form-input bg-accent/20':'form-input bg-gray-700 cursor-not-allowed'}"
+                            ${isEditable?'':'disabled'}
+                            data-disciplina="${disc}" data-bimestre="${field}">
+                    </td>`;
         }
-        initializeFirebase(); 
-        */
+        row += '</tr>';
+        tableBody.insertAdjacentHTML('beforeend', row);
+    });
 
-        // Chama loadTutores ao carregar a página se o Firebase não estiver sendo usado
-        document.addEventListener('DOMContentLoaded', () => {
-             // Se você remover o bloco initializeFirebase(), descomente a linha abaixo
-             loadTutores(); 
-        });
+    document.getElementById('salvar-notas-button').disabled = false;
+}
 
+// ===============================
+// SALVAR NOTAS NO SUPABASE
+// ===============================
+async function salvarNotas(e){
+    e.preventDefault();
+    if (!selectedAlunoId || !selectedBimestre) return alert('Selecione aluno e bimestre');
 
-        // =======================================================
-        // LÓGICA DE FILTROS CASCATA
-        // =======================================================
+    const bField = `B${selectedBimestre}`;
+    const inputs = document.querySelectorAll(`input[data-bimestre="${bField}"]`);
+    const notasToSave = {};
+    inputs.forEach(input=>{
+        const disc = input.dataset.disciplina;
+        let val = parseFloat(input.value);
+        if (isNaN(val)) val = 0;
+        if (!notasToSave[disc]) notasToSave[disc] = { B1:0,B2:0,B3:0,B4:0 };
+        notasToSave[disc][bField] = val;
+    });
 
-        // 1. FILTRO TUTOR
-        window.loadTutores = function() {
-            const selectTutor = document.getElementById('filter-tutor');
-            
-            selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
-            tutoresMOCK.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(tutor => {
-                const option = document.createElement('option');
-                option.value = tutor.id;
-                option.textContent = tutor.nome;
-                selectTutor.appendChild(option);
-            });
-            
-            loadAlunos();
-        }
+    const { data, error } = await supabase
+        .from('f_frequencia')
+        .upsert([{ aluno_id:selectedAlunoId, notas:notasToSave, updated_at:new Date().toISOString() }], { onConflict:['aluno_id'] });
 
-        // 2. FILTRO ALUNO
-        window.loadAlunos = function() {
-            const tutorId = document.getElementById('filter-tutor').value;
-            const selectAluno = document.getElementById('filter-aluno');
-            const selectBimestre = document.getElementById('filter-bimestre');
-            
-            selectedAlunoId = null; 
-            
-            // Limpar/Resetar
-            selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
-            selectAluno.disabled = !tutorId;
-            selectBimestre.disabled = true; // Desabilita o bimestre até o aluno ser selecionado
-            document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
-            document.getElementById('salvar-notas-button').disabled = true;
+    if (error) { console.error(error); alert('Erro ao salvar notas'); return; }
+    alert('Notas salvas com sucesso!');
+    loadGradesTable();
+}
 
-
-            if (tutorId && alunosPorTutorMOCK[tutorId]) {
-                alunosPorTutorMOCK[tutorId].sort((a, b) => a.nome.localeCompare(b.nome)).forEach(aluno => {
-                    const option = document.createElement('option');
-                    option.value = aluno.id;
-                    option.textContent = aluno.nome;
-                    selectAluno.appendChild(option);
-                });
-            }
-        }
-        
-        // 3. SELEÇÃO DO ALUNO (Habilita o Bimestre)
-        window.enableBimestre = function() {
-            const alunoId = document.getElementById('filter-aluno').value;
-            const selectBimestre = document.getElementById('filter-bimestre');
-            
-            selectBimestre.disabled = !alunoId;
-            
-            // Limpa a tabela e desabilita o botão ao mudar o aluno
-            document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
-            document.getElementById('salvar-notas-button').disabled = true;
-
-            if (alunoId) {
-                selectedAlunoId = alunoId;
-                // Se o bimestre já estiver selecionado, carrega a tabela
-                if (selectBimestre.value) {
-                    loadGradesTable();
-                }
-            }
-        }
-
-        // =======================================================
-        // LÓGICA DE CARREGAMENTO DA TABELA (COM EDIÇÃO CONDICIONAL)
-        // =======================================================
-        window.loadGradesTable = function() {
-            const alunoId = document.getElementById('filter-aluno').value;
-            // O valor do option é 1, 2, 3 ou 4
-            const selectedBimestreValue = document.getElementById('filter-bimestre').value; 
-            const tableBody = document.getElementById('grades-table-body');
-            const saveButton = document.getElementById('salvar-notas-button');
-
-            selectedBimestre = selectedBimestreValue + 'º Bimestre'; // Define a string completa para salvar
-            tableBody.innerHTML = '';
-            saveButton.disabled = true;
-
-            if (!alunoId || !selectedBimestreValue) {
-                tableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
-                return;
-            }
-            
-            saveButton.disabled = false;
-            saveButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            
-            // Determina qual campo 'B' corresponde ao bimestre selecionado (ex: '1' -> 'B1')
-            const bField = `B${selectedBimestreValue}`; 
-
-            disciplinasMOCK.forEach(disciplina => {
-                // Tenta buscar as notas do aluno; se não existir, usa um objeto de zeros.
-                const grades = notasMOCK[alunoId]?.[disciplina] || { B1: 0.0, B2: 0.0, B3: 0.0, B4: 0.0 };
-                
-                let row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50">
-                    <td class="p-3 font-semibold text-text-light">${disciplina}</td>`;
-
-                for (let i = 1; i <= 4; i++) {
-                    const currentBField = `B${i}`;
-                    const isEditable = currentBField === bField;
-                    const gradeValue = grades[currentBField];
-                    // Exibe a nota com 1 casa decimal, ou vazio se for 0.0
-                    const displayValue = gradeValue > 0.0 ? gradeValue.toFixed(1) : ''; 
-                    
-                    const gradeClass = isEditable 
-                        ? 'form-input w-20 text-center bg-accent/20 border-accent focus:bg-accent/40 text-lg' 
-                        : 'form-input w-20 text-center bg-gray-700 border-gray-600 cursor-not-allowed text-lg';
-                    const disabledAttr = isEditable ? '' : 'disabled';
-                    
-                    row += `<td class="p-2">
-                                <input type="number" step="0.1" min="0" max="10" 
-                                       id="nota-${disciplina.replace(/\s/g, '_')}-${currentBField}"
-                                       value="${displayValue}"
-                                       class="${gradeClass}"
-                                       ${disabledAttr}
-                                       data-discipline="${disciplina}"
-                                       data-bimestre="${currentBField}">
-                            </td>`;
-                }
-                
-                row += '</tr>';
-                tableBody.insertAdjacentHTML('beforeend', row);
-            });
-        }
-
-        // =======================================================
-        // LÓGICA DE SALVAMENTO
-        // =======================================================
-        window.salvarNotas = async function(event) {
-            event.preventDefault();
-            
-            if (!selectedAlunoId || !selectedBimestre) {
-                mostrarMensagem('Erro: Selecione o Aluno e o Bimestre antes de salvar.', 'warning');
-                return;
-            }
-            
-            const tutorId = document.getElementById('filter-tutor').value;
-            const alunoNome = alunosPorTutorMOCK[tutorId].find(a => a.id === selectedAlunoId)?.nome || selectedAlunoId;
-            const bField = `B${selectedBimestre.charAt(0)}`; // '1º Bimestre' -> 'B1'
-
-            const gradesToSave = {};
-            let gradesUpdatedCount = 0;
-            
-            // 1. Coleta os dados apenas dos campos editáveis para o bimestre atual
-            document.querySelectorAll(`input[data-bimestre="${bField}"]`).forEach(input => {
-                const disciplina = input.dataset.discipline;
-                let nota = parseFloat(input.value);
-                
-                if (isNaN(nota) || nota < 0 || nota > 10) {
-                     nota = 0.0; 
-                }
-                
-                gradesToSave[disciplina] = nota;
-            });
-            
-            // 2. Atualiza o objeto MOCK (simulando a escrita no banco de dados)
-            if (!notasMOCK[selectedAlunoId]) notasMOCK[selectedAlunoId] = {};
-            
-            for (const disciplina in gradesToSave) {
-                if (!notasMOCK[selectedAlunoId][disciplina]) {
-                    // Inicializa a disciplina se for a primeira vez
-                    notasMOCK[selectedAlunoId][disciplina] = { B1: 0.0, B2: 0.0, B3: 0.0, B4: 0.0 };
-                }
-                
-                // Registra se houve mudança
-                if (notasMOCK[selectedAlunoId][disciplina][bField] !== gradesToSave[disciplina]) {
-                     notasMOCK[selectedAlunoId][disciplina][bField] = gradesToSave[disciplina];
-                     gradesUpdatedCount++;
-                }
-            }
-            
-            if (gradesUpdatedCount === 0) {
-                mostrarMensagem('Nenhuma nota foi alterada para ser salva.', 'warning');
-                return;
-            }
-
-            // 3. Simulação de salvamento no Firebase (comentado)
-            /*
-            const docId = selectedAlunoId;
-            const collectionPath = `/artifacts/${appId}/users/${window.userId}/notas_bimestrais`;
-            const docRef = doc(window.db, collectionPath, docId);
-            
-            mostrarMensagem(`Salvando ${gradesUpdatedCount} notas do ${selectedBimestre} para ${alunoNome}...`, 'info');
-
-            try {
-                // Em um sistema real, aqui você atualizaria o registro do aluno com as novas notas
-                await setDoc(docRef, { 
-                    aluno_id: selectedAlunoId,
-                    aluno_nome: alunoNome,
-                    tutor_id: tutorId,
-                    // Salvando o objeto completo de notas do aluno (simplificação)
-                    todas_as_notas: notasMOCK[selectedAlunoId],
-                    ultimo_lancamento: Timestamp.fromDate(new Date()),
-                }, { merge: true }); 
-                
-                mostrarMensagem(`Lançamento de ${gradesUpdatedCount} notas do ${selectedBimestre} para ${alunoNome} concluído com sucesso!`, 'success');
-                
-                // 4. Recarrega a tabela para exibir os dados salvos e desabilitados
-                loadGradesTable(); 
-            } catch (e) {
-                console.error("Erro ao salvar notas: ", e);
-                mostrarMensagem("Erro ao salvar as notas. Verifique o console.", 'danger');
-            }
-            */
-            
-            // Simulação de sucesso sem Firebase
-            mostrarMensagem(`[Simulação] Lançamento de ${gradesUpdatedCount} notas do ${selectedBimestre} para ${alunoNome} concluído!`, 'success');
-            loadGradesTable(); 
-        }
-        
-    </script>
-    
-    <script>
-        // Configuração personalizada do Tailwind
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'dark-primary': '#0F172A', 
-                        'dark-secondary': '#1E293B', 
-                        'accent': '#10B981', 
-                        'text-light': '#F8FAFC', 
-                        'input-bg': '#374151', 
-                        'danger': '#DC2626', 
-                        'success': '#10B981', 
-                        'warning': '#F59E0B',
-                        'info': '#3B82F6',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                }
-            }
-        }
-        
-        function mostrarMensagem(texto, tipo) {
-            const msgElement = document.getElementById('mensagem-status');
-            msgElement.textContent = texto;
-            
-            msgElement.classList.remove('hidden', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info');
-
-            const classMap = {
-                'success': 'bg-accent',
-                'danger': 'bg-red-600',
-                'warning': 'bg-yellow-500',
-                'info': 'bg-blue-600',
-            };
-
-            msgElement.classList.add(classMap[tipo] || 'bg-gray-600');
-            msgElement.classList.remove('hidden');
-            
-            setTimeout(() => {
-                msgElement.classList.add('hidden');
-            }, 5000);
-        }
-    </script>
-    <style>
-        .form-input {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            background-color: #374151; 
-            color: #f3f4f6;
-            border: 1px solid #4b5563;
-        }
-        .form-input[disabled] {
-            opacity: 0.7;
-        }
-        /* Ajuste para o input number */
-        input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        input[type="number"] {
-            -moz-appearance: textfield; /* Firefox */
-        }
-    </style>
+document.addEventListener('DOMContentLoaded', ()=>{ loadTutores(); });
+</script>
+<style>
+body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
+.form-input{width:100%;padding:.75rem;border-radius:.5rem;background-color:#1E293B;color:#F8FAFC;border:1px solid #4b5563;}
+.form-input[disabled]{opacity:.7;}
+</style>
 </head>
-<body class="bg-dark-primary font-sans text-text-light">
-    
-    <div id="app-container" class="flex flex-col items-center justify-between p-4 md:p-8 min-h-screen">
+<body class="bg-dark-primary">
+<div class="flex flex-col items-center min-h-screen p-4 md:p-8">
+<header class="w-full text-center mb-8">
+<h1 class="text-3xl sm:text-4xl font-extrabold text-accent leading-tight tracking-wider">GESTÃO DE TUTORIA</h1>
+<h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">LANÇAMENTO DE NOTAS BIMESTRAIS</h2>
+</header>
 
-        <header class="w-full text-center mb-8 mt-4">
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-accent leading-tight tracking-wider">
-                GESTAO DE TUTORIA
-            </h1>
-            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
-                LANÇAMENTO DE NOTAS BIMESTRAIS
-            </h2>
-             <div class="mt-4">
-                 <button type="button" onclick="window.location.href='/gestao_tutoria'"
-                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
-                    <span>VOLTAR PARA O MENU DE TUTORIA</span>
-                </button>
-            </div>
-        </header>
+<main class="w-full max-w-5xl flex-grow">
+<form onsubmit="salvarNotas(event)" class="bg-dark-secondary p-6 rounded-xl shadow-2xl space-y-6">
 
-        <div id="mensagem-status" class="hidden p-3 mb-4 text-sm font-medium text-white rounded-lg text-center w-full max-w-4xl" role="alert"></div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div>
+<label for="filter-tutor" class="block text-sm font-medium mb-1">Tutor *:</label>
+<select id="filter-tutor" class="form-input" onchange="loadAlunos()" required></select>
+</div>
+<div>
+<label for="filter-aluno" class="block text-sm font-medium mb-1">Aluno *:</label>
+<select id="filter-aluno" class="form-input" onchange="enableBimestre()" disabled required></select>
+</div>
+<div>
+<label for="filter-bimestre" class="block text-sm font-medium mb-1">Bimestre *:</label>
+<select id="filter-bimestre" class="form-input" onchange="loadGradesTable()" disabled required>
+<option value="">SELECIONE</option>
+<option value="1">1º Bimestre</option>
+<option value="2">2º Bimestre</option>
+<option value="3">3º Bimestre</option>
+<option value="4">4º Bimestre</option>
+</select>
+</div>
+</div>
 
-        <main class="w-full max-w-5xl flex-grow">
-            
-            <form id="lancamento-notas-form" onsubmit="salvarNotas(event)" class="bg-dark-secondary p-6 rounded-xl shadow-2xl space-y-6">
+<div class="overflow-x-auto rounded-lg shadow-lg border border-gray-700 mt-4">
+<table class="min-w-full divide-y divide-gray-700">
+<thead class="bg-dark-primary">
+<tr>
+<th class="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">DISCIPLINA</th>
+<th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B1</th>
+<th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B2</th>
+<th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B3</th>
+<th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B4</th>
+</tr>
+</thead>
+<tbody id="grades-table-body" class="bg-dark-secondary divide-y divide-gray-700">
+<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>
+</tbody>
+</table>
+</div>
 
-                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400">1. Seleção e Filtros</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    
-                    <div>
-                        <label for="filter-tutor" class="block text-sm font-medium mb-1">Tutor *:</label>
-                        <select id="filter-tutor" class="form-input" onchange="loadAlunos()" required>
-                            <option value="">SELECIONE O TUTOR</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label for="filter-aluno" class="block text-sm font-medium mb-1">Aluno *:</label>
-                        <select id="filter-aluno" class="form-input" onchange="enableBimestre()" disabled required>
-                            <option value="">SELECIONE O ALUNO</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="filter-bimestre" class="block text-sm font-medium mb-1">Bimestre *:</label>
-                        <select id="filter-bimestre" class="form-input" onchange="loadGradesTable()" disabled required>
-                            <option value="">SELECIONE O BIMESTRE</option>
-                            <option value="1">1º Bimestre</option>
-                            <option value="2">2º Bimestre</option>
-                            <option value="3">3º Bimestre</option>
-                            <option value="4">4º Bimestre</option>
-                        </select>
-                    </div>
-
-                </div>
-
-                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400 pt-4">2. Lançamento por Disciplina</h3>
-                
-                <div class="overflow-x-auto rounded-lg shadow-lg border border-gray-700">
-                    <table class="min-w-full divide-y divide-gray-700">
-                        <thead class="bg-dark-primary">
-                            <tr>
-                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">DISCIPLINA</th>
-                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B1</th>
-                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B2</th>
-                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B3</th>
-                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">B4</th>
-                            </tr>
-                        </thead>
-                        <tbody id="grades-table-body" class="bg-dark-secondary divide-y divide-gray-700">
-                             <tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <button type="submit" id="salvar-notas-button" disabled
-                        class="w-full bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg shadow-emerald-500/50 flex items-center justify-center space-x-2 transform hover:scale-[1.01] opacity-50 cursor-not-allowed">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>SALVAR NOTAS DO BIMESTRE SELECIONADO</span>
-                </button>
-                
-                <p class="mt-4 text-xs text-gray-400 text-center">Apenas a coluna do bimestre selecionado ficará habilitada para edição.</p>
-
-            </form>
-
-        </main>
-        
-        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
-            <p class="mb-1 text-base font-medium">
-                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
-            </p>
-            <p class="text-xs font-light tracking-wide">
-                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS
-            </p>
-        </footer>
-
-    </div>
-
+<button type="submit" id="salvar-notas-button" disabled class="w-full bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg mt-4">SALVAR NOTAS</button>
+</form>
+</main>
+</div>
 </body>
 </html>
