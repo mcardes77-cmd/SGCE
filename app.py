@@ -260,15 +260,6 @@ def gestao_cadastro_vincular_disciplina_sala():
 # ROTAS DE API (DADOS)
 # =========================================================
 
-@app.route('/api/salas', methods=['GET'])
-def api_get_salas():
-    try:
-        response = supabase.table('d_salas').select('id, sala, nivel_ensino').order('sala').execute()
-        salas = [{"id": str(s['id']), "nome": f"{s['sala']} ({s['nivel_ensino']})", "nivel_ensino": s['nivel_ensino']} for s in handle_supabase_response(response)]
-        return jsonify(salas)
-    except Exception as e:
-        return jsonify({"error": f"Erro ao buscar salas: {e}", "status": 500}), 500
-
 @app.route('/api/funcionarios', methods=['GET'])
 def api_get_funcionarios():
     try:
@@ -2039,6 +2030,7 @@ def get_ficha_tutoria(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
