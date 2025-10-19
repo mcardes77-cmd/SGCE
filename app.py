@@ -754,45 +754,27 @@ def api_get_guia_aprendizagem():
         return jsonify({"error": f"Erro ao buscar Guia de Aprendizagem: {e}", "status": 500}), 500
 
 # ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
-@app.route("/api/frequencia")
-def api_frequencia():
-    """Busca frequência - Versão simplificada (Dados da coluna `data_registro` e `status_agendamento`)."""
-    sala = request.args.get("sala")
-    mes = request.args.get("mes")
-    if not sala or not mes:
-        return jsonify({"error": "Parâmetros sala e mes obrigatórios"}), 400
-
-    mes = int(mes)
-    ano = datetime.now().year
+@app.route("/api/frequencia", methods=["GET"])
+def get_frequencia():
+    sala_id = request.args.get("sala_id")
+    mes = int(request.args.get("mes"))
 
     try:
-        # Buscar todos os alunos da sala
-        alunos_res = supabase.table("d_alunos").select("id,nome").eq("sala_id", sala).execute()
-        alunos = alunos_res.data
+        # Define o intervalo do mês
+        data_inicio = f"2025-{mes:02d}-01"
+        data_fim = f"2025-{mes + 1:02d}-01" if mes < 12 else "2026-01-01"
 
-        resultado = []
-        for aluno in alunos:
-            # Buscar frequência do aluno no mês
-            # Nota: Esta query não está filtrando por mês/ano, o que pode trazer dados incorretos.
-            freq_res = supabase.table("f_frequencia") \
-                .select("*") \
-                .eq("aluno_id", aluno["id"]) \
-                .execute()
-            freq_data = {}
-            for f in freq_res.data:
-                # O frontend irá tentar extrair data_registro e status_agendamento
-                data_str = f.get("data_registro", "")[:10]
-                # Assume que a coluna de status é status_agendamento
-                freq_data[data_str] = f.get("status_agendamento", "")  
-            resultado.append({
-                "id": aluno["id"],
-                "nome": aluno["nome"],
-                "frequencia": freq_data
-            })
-        return jsonify(resultado)
+        # Busca dados no Supabase
+        response = supabase.table("f_frequencia").select(
+            "fk_aluno_id, fk_sala_id, status, created_at, hora_atraso, motivo_atraso, responsavel_atraso, documento_atraso, hora_saida, motivo_saida, responsavel_saida, documento_saida"
+        ).eq("fk_sala_id", sala_id).gte("created_at", data_inicio).lt("created_at", data_fim).execute()
+
+        frequencias = response.data
+
+        return jsonify(frequencias)
     except Exception as e:
-        logging.error(f"Erro em api_frequencia: {e}")
-        return jsonify({"error": f"Erro interno ao buscar frequência: {e}"}), 500
+        print("Erro ao buscar frequência:", e)
+        return jsonify({"error": str(e)}), 500
 
 # ROTA SUBSTITUÍDA PELO BLOCO DO USUÁRIO
 @app.route("/api/detalhe_frequencia")
@@ -1947,3 +1929,4 @@ def get_ficha_tutoria(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
