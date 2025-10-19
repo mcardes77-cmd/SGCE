@@ -9,6 +9,8 @@ from datetime import datetime
 from calendar import monthrange
 import io
 from fpdf import FPDF
+import logging
+from flask import jsonify, request
 
 # =========================================================
 # CONFIGURAÇÕES INICIAIS
@@ -448,20 +450,31 @@ def ocorrencia_detalhes():
         return jsonify({'error': 'Número da ocorrência não fornecido'}), 400
 
     try:
+        # Função segura para converter valores em booleanos
+        def _to_bool(value):
+            if value in [True, 'true', 'True', 1, '1', 'SIM', 'Sim', 'sim']:
+                return True
+            return False
+
         # Consulta ao Supabase
-        select_query_detail = "numero, data_hora, descricao, atendimento_professor, atendimento_tutor, atendimento_coordenacao, atendimento_gestao, dt_atendimento_tutor, dt_atendimento_coordenacao, dt_atendimento_gestao, aluno_nome, tutor_nome, professor_id(nome), sala_id(sala), status, solicitado_tutor, solicitado_coordenacao, solicitado_gestao"
+        select_query_detail = (
+            "numero, data_hora, descricao, atendimento_professor, "
+            "atendimento_tutor, atendimento_coordenacao, atendimento_gestao, "
+            "dt_atendimento_tutor, dt_atendimento_coordenacao, dt_atendimento_gestao, "
+            "aluno_nome, tutor_nome, professor_id(nome), sala_id(sala), "
+            "status, solicitado_tutor, solicitado_coordenacao, solicitado_gestao"
+        )
+
         resp = supabase.table('ocorrencias').select(select_query_detail).eq('numero', numero).single().execute()
 
         occ = resp.data
-
         if occ is None:
             return jsonify({'error': 'Ocorrência não encontrada'}), 404
 
-        # Extrai nomes aninhados e status de solicitação (SIM/NÃO)
         professor_nome = occ.get('professor_id', {}).get('nome', 'N/A')
         sala_nome = occ.get('sala_id', {}).get('sala', 'N/A')
-        
-        # O frontend precisa dos booleanos para saber quais campos liberar
+
+        # Sempre retorna JSON, mesmo em erros
         return jsonify({
             'numero': occ.get('numero'),
             'aluno_nome': occ.get('aluno_nome'),
@@ -477,11 +490,11 @@ def ocorrencia_detalhes():
             'solicitado_tutor': _to_bool(occ.get('solicitado_tutor')),
             'solicitado_coordenacao': _to_bool(occ.get('solicitado_coordenacao')),
             'solicitado_gestao': _to_bool(occ.get('solicitado_gestao')),
-        })
+        }), 200
+
     except Exception as e:
         logging.exception(f"Erro ao consultar Supabase para detalhes da ocorrência {numero}")
         return jsonify({'error': f'Erro ao consultar Supabase: {str(e)}'}), 500
-
 @app.route('/api/ocorrencias_finalizadas', methods=['GET'])
 def api_ocorrencias_finalizadas():
     try:
@@ -1918,6 +1931,7 @@ def salvar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
