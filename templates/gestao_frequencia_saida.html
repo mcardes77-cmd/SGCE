@@ -1,194 +1,194 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Saída Antecipada</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'dark-primary': '#0F172A', 'dark-secondary': '#1E293B',
-                        'secondary-accent': '#4F46E5', 'accent-success': '#10B981',
-                        'alert-danger': '#DC2626', 'text-light': '#F8FAFC',
-                    },
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                }
-            }
-        }
-    </script>
-    <style>
-        body { background-color: #0F172A; color: #F8FAFC; font-family: sans-serif; }
-        .form-select, .form-input {
-            @apply w-full p-3 bg-white border border-gray-700 rounded-lg text-black focus:ring-secondary-accent focus:border-secondary-accent;
-            appearance: menulist !important;
-            color: black !important;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Saída Antecipada</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A', 'dark-secondary': '#1E293B',
+                        'secondary-accent': '#4F46E5', 'accent-success': '#10B981',
+                        'alert-danger': '#DC2626', 'text-light': '#F8FAFC',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0F172A; color: #F8FAFC; font-family: sans-serif; }
+        .form-select, .form-input {
+            @apply w-full p-3 bg-white border border-gray-700 rounded-lg text-black focus:ring-secondary-accent focus:border-secondary-accent;
+            appearance: menulist !important;
+            color: black !important;
+        }
+    </style>
 
-    <script>
-        let salasData = [];
-        let alunosData = [];
+    <script>
+        let salasData = [];
+        let alunosData = [];
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadSalas();
-            document.getElementById('select-sala').addEventListener('change', loadAlunos);
-        });
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSalas();
+            document.getElementById('select-sala').addEventListener('change', loadAlunos);
+        });
 
-        async function loadSalas() {
-            try {
-                const response = await fetch('/api/salas');
-                salasData = await response.json();
-                const selectSala = document.getElementById('select-sala');
-                selectSala.innerHTML = '<option value="">Selecione a Sala</option>';
-                salasData.forEach(sala => {
-                    selectSala.innerHTML += `<option value="${sala.id}">${sala.nome}</option>`;
-                });
-            } catch (error) {
-                console.error('Erro ao carregar salas:', error);
-                mostrarMsg('Erro ao carregar salas.', 'alert-danger');
-            }
-        }
+        async function loadSalas() {
+            try {
+                const response = await fetch('/api/salas');
+                salasData = await response.json();
+                const selectSala = document.getElementById('select-sala');
+                selectSala.innerHTML = '<option value="">Selecione a Sala</option>';
+                salasData.forEach(sala => {
+                    selectSala.innerHTML += `<option value="${sala.id}">${sala.sala || sala.nome || 'N/A'}</option>`;
+                });
+            } catch (error) {
+                console.error('Erro ao carregar salas:', error);
+                mostrarMsg('Erro ao carregar salas.', 'alert-danger');
+            }
+        }
 
-        async function loadAlunos() {
-            const salaId = document.getElementById('select-sala').value;
-            const selectAluno = document.getElementById('select-aluno');
-            selectAluno.innerHTML = '<option value="">Selecione o Aluno</option>';
+        async function loadAlunos() {
+            const salaId = document.getElementById('select-sala').value;
+            const selectAluno = document.getElementById('select-aluno');
+            selectAluno.innerHTML = '<option value="">Selecione o Aluno</option>';
 
-            if (!salaId) return;
+            if (!salaId) return;
 
-            try {
-                const response = await fetch(`/api/alunos_por_sala/${salaId}`);
-                alunosData = await response.json();
-                alunosData.forEach(aluno => {
-                    selectAluno.innerHTML += `<option value="${aluno.id}">${aluno.nome}</option>`;
-                });
-            } catch (error) {
-                console.error('Erro ao carregar alunos:', error);
-                mostrarMsg('Erro ao carregar alunos.', 'alert-danger');
-            }
-        }
+            try {
+                const response = await fetch(`/api/alunos_por_sala/${salaId}`);
+                alunosData = await response.json();
+                alunosData.forEach(aluno => {
+                    selectAluno.innerHTML += `<option value="${aluno.id}">${aluno.nome}</option>`;
+                });
+            } catch (error) {
+                console.error('Erro ao carregar alunos:', error);
+                mostrarMsg('Erro ao carregar alunos.', 'alert-danger');
+            }
+        }
 
-        async function saveSaida() {
-            const alunoId = document.getElementById('select-aluno').value;
-            const salaId = document.getElementById('select-sala').value;
-            const data = document.getElementById('input-data').value;
-            const hora = document.getElementById('input-hora').value;
-            const motivo = document.getElementById('input-motivo').value;
-            const responsavel = document.getElementById('input-responsavel').value;
-            const telefone = document.getElementById('input-telefone').value;
+        async function saveSaida() {
+            const alunoId = document.getElementById('select-aluno').value;
+            const salaId = document.getElementById('select-sala').value;
+            const data = document.getElementById('input-data').value;
+            const hora = document.getElementById('input-hora').value;
+            const motivo = document.getElementById('input-motivo').value;
+            const responsavel = document.getElementById('input-responsavel').value;
+            const telefone = document.getElementById('input-telefone').value;
 
-            if (!alunoId || !salaId || !data || !hora || !motivo || !responsavel || !telefone) {
-                mostrarMsg('Todos os campos são obrigatórios.', 'alert-danger');
-                return;
-            }
+            if (!alunoId || !salaId || !data || !hora || !motivo || !responsavel || !telefone) {
+                mostrarMsg('Todos os campos são obrigatórios.', 'alert-danger');
+                return;
+            }
 
-            const payload = {
-                aluno_id: alunoId,
-                sala_id: salaId,
-                data: data,
-                hora: hora,
-                motivo: motivo,
-                responsavel: responsavel,
-                telefone: telefone
-            };
+            const payload = {
+                aluno_id: alunoId,
+                sala_id: salaId,
+                data: data,
+                hora: hora,
+                motivo: motivo,
+                responsavel: responsavel,
+                telefone: telefone
+            };
 
-            mostrarMsg('Salvando registro de saída antecipada...', 'secondary-accent');
+            mostrarMsg('Salvando registro de saída antecipada...', 'secondary-accent');
 
-            try {
-                const response = await fetch('/api/salvar_saida_antecipada', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            try {
+                const response = await fetch('/api/salvar_saida_antecipada', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-                const result = await response.json();
+                const result = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(result.error || 'Erro desconhecido ao salvar.');
-                }
+                if (!response.ok) {
+                    throw new Error(result.error || 'Erro desconhecido ao salvar.');
+                }
 
-                mostrarMsg(result.message, 'accent-success');
-                // Limpar formulário após sucesso
-                document.getElementById('form-saida').reset();
-                loadAlunos(); // Recarrega alunos para resetar o select
-            } catch (error) {
-                console.error('Erro ao salvar saída antecipada:', error);
-                mostrarMsg(`Erro ao salvar: ${error.message}`, 'alert-danger');
-            }
-        }
+                mostrarMsg(result.message, 'accent-success');
+                // Limpar formulário após sucesso
+                document.getElementById('form-saida').reset();
+                loadAlunos(); // Recarrega alunos para resetar o select
+            } catch (error) {
+                console.error('Erro ao salvar saída antecipada:', error);
+                mostrarMsg(`Erro ao salvar: ${error.message}`, 'alert-danger');
+            }
+        }
 
-        function mostrarMsg(msg, tipo = 'info') {
-            const el = document.getElementById('global-message');
-            el.textContent = msg;
-            el.className = `p-3 rounded mt-4 text-white font-bold`;
-            el.style.display = 'block';
+        function mostrarMsg(msg, tipo = 'info') {
+            const el = document.getElementById('global-message');
+            el.textContent = msg;
+            el.className = `p-3 rounded mt-4 text-white font-bold`;
+            el.style.display = 'block';
 
-            if (tipo === 'alert-danger') {
-                el.classList.add('bg-alert-danger');
-            } else if (tipo === 'accent-success') {
-                el.classList.add('bg-accent-success');
-            } else {
-                el.classList.add('bg-secondary-accent');
-            }
+            if (tipo === 'alert-danger') {
+                el.classList.add('bg-alert-danger');
+            } else if (tipo === 'accent-success') {
+                el.classList.add('bg-accent-success');
+            } else {
+                el.classList.add('bg-secondary-accent');
+            }
 
-            setTimeout(() => el.style.display = 'none', 5000);
-        }
-    </script>
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+    </script>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen">
-    <div class="w-full max-w-2xl flex-grow p-4">
-        <h1 class="text-3xl font-extrabold mb-6 text-center text-secondary-accent">Registro de Saída Antecipada (Status PS/PAS)</h1>
-        
-        <div id="global-message" style="display: none;"></div>
+    <div class="w-full max-w-2xl flex-grow p-4">
+        <h1 class="text-3xl font-extrabold mb-6 text-center text-secondary-accent">Registro de Saída Antecipada (Status PS/PAS)</h1>
+        
+        <div id="global-message" style="display: none;"></div>
 
-        <form id="form-saida" class="bg-dark-secondary p-8 rounded-xl shadow-2xl space-y-6">
-            <h3 class="text-xl font-bold border-b border-gray-600 pb-3 text-accent-success">Dados da Saída</h3>
+        <form id="form-saida" class="bg-dark-secondary p-8 rounded-xl shadow-2xl space-y-6">
+            <h3 class="text-xl font-bold border-b border-gray-600 pb-3 text-accent-success">Dados da Saída</h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="select-sala" class="block text-sm font-medium text-gray-300 mb-1">Sala:</label>
-                    <select id="select-sala" class="form-select" required></select>
-                </div>
-                <div>
-                    <label for="select-aluno" class="block text-sm font-medium text-gray-300 mb-1">Aluno:</label>
-                    <select id="select-aluno" class="form-select" required></select>
-                </div>
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="select-sala" class="block text-sm font-medium text-gray-300 mb-1">Sala:</label>
+                    <select id="select-sala" class="form-select" required></select>
+                </div>
+                <div>
+                    <label for="select-aluno" class="block text-sm font-medium text-gray-300 mb-1">Aluno:</label>
+                    <select id="select-aluno" class="form-select" required></select>
+                </div>
+            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="input-data" class="block text-sm font-medium text-gray-300 mb-1">Data:</label>
-                    <input id="input-data" type="date" class="form-input" required>
-                </div>
-                <div>
-                    <label for="input-hora" class="block text-sm font-medium text-gray-300 mb-1">Hora da Saída:</label>
-                    <input id="input-hora" type="time" class="form-input" required>
-                </div>
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="input-data" class="block text-sm font-medium text-gray-300 mb-1">Data:</label>
+                    <input id="input-data" type="date" class="form-input" required>
+                </div>
+                <div>
+                    <label for="input-hora" class="block text-sm font-medium text-gray-300 mb-1">Hora da Saída:</label>
+                    <input id="input-hora" type="time" class="form-input" required>
+                </div>
+            </div>
 
-            <div>
-                <label for="input-motivo" class="block text-sm font-medium text-gray-300 mb-1">Motivo:</label>
-                <textarea id="input-motivo" rows="2" class="form-input" placeholder="Motivo da saída antecipada..." required></textarea>
-            </div>
+            <div>
+                <label for="input-motivo" class="block text-sm font-medium text-gray-300 mb-1">Motivo:</label>
+                <textarea id="input-motivo" rows="2" class="form-input" placeholder="Motivo da saída antecipada..." required></textarea>
+            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="input-responsavel" class="block text-sm font-medium text-gray-300 mb-1">Responsável:</label>
-                    <input id="input-responsavel" type="text" class="form-input" placeholder="Nome do responsável" required>
-                </div>
-                <div>
-                    <label for="input-telefone" class="block text-sm font-medium text-gray-300 mb-1">Telefone:</label>
-                    <input id="input-telefone" type="tel" class="form-input" placeholder="(11) 99999-9999" required>
-                </div>
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="input-responsavel" class="block text-sm font-medium text-gray-300 mb-1">Responsável:</label>
+                    <input id="input-responsavel" type="text" class="form-input" placeholder="Nome do responsável" required>
+                </div>
+                <div>
+                    <label for="input-telefone" class="block text-sm font-medium text-gray-300 mb-1">Telefone:</label>
+                    <input id="input-telefone" type="tel" class="form-input" placeholder="(11) 99999-9999" required>
+                </div>
+            </div>
 
-            <button type="button" onclick="saveSaida()" class="w-full bg-accent-success hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
-                Salvar Saída Antecipada
-            </button>
-        </form>
-    </div>
+            <button type="button" onclick="saveSaida()" class="w-full bg-accent-success hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                Salvar Saída Antecipada
+            </button>
+        </form>
+    </div>
 </body>
 </html>
