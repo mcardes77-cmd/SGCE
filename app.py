@@ -2023,6 +2023,74 @@ def get_ficha_tutoria(aluno_id):
         return jsonify({'error': 'Ficha não encontrada'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Frequência
+@app.route("/frequencia")
+def frequencia():
+    alunos = supabase_client.table("f_frequencia").select("*").execute().data
+    return render_template("frequencia.html", alunos=alunos)
+
+# Tutoria
+@app.route("/tutoria")
+def tutoria():
+    tutores = supabase_client.table("f_tutoria").select("*").execute().data
+    return render_template("tutoria.html", tutores=tutores)
+
+# Ocorrências abertas
+@app.route("/ocorrencias_abertas")
+def ocorrencias_abertas():
+    ocorrencias = supabase_client.table("f_ocorrencias").select("*").eq("status", "aberta").execute().data
+    return render_template("ocorrencias_abertas.html", ocorrencias=ocorrencias)
+
+# Editar ocorrência
+@app.route("/ocorrencia_editar/<int:id>", methods=["GET", "POST"])
+def ocorrencia_editar(id):
+    if request.method == "POST":
+        dados = request.form.to_dict()
+        supabase_client.table("f_ocorrencias").update(dados).eq("id", id).execute()
+        return redirect(url_for("ocorrencias_abertas"))
+    else:
+        ocorrencia = supabase_client.table("f_ocorrencias").select("*").eq("id", id).single().execute().data
+        return render_template("ocorrencia_editar.html", ocorrencia=ocorrencia)
+
+# API para frequência (JSON)
+@app.route("/api/frequencia")
+def api_frequencia():
+    dados = supabase_client.table("f_frequencia").select("*").execute().data
+    return jsonify(dados)
+
+# API para tutoria (JSON)
+@app.route("/api/tutoria")
+def api_tutoria():
+    dados = supabase_client.table("f_tutoria").select("*").execute().data
+    return jsonify(dados)
+
+# ----------------- FILTROS -----------------
+
+@app.route("/filtrar_frequencia", methods=["POST"])
+def filtrar_frequencia():
+    filtros = request.json
+    query = supabase_client.table("f_frequencia").select("*")
+    if filtros.get("curso"):
+        query = query.eq("curso", filtros["curso"])
+    if filtros.get("turma"):
+        query = query.eq("turma", filtros["turma"])
+    if filtros.get("mes"):
+        query = query.eq("mes", filtros["mes"])
+    alunos = query.execute().data
+    return jsonify(alunos)
+
+@app.route("/filtrar_tutoria", methods=["POST"])
+def filtrar_tutoria():
+    filtros = request.json
+    query = supabase_client.table("f_tutoria").select("*")
+    if filtros.get("tutor"):
+        query = query.eq("tutor", filtros["tutor"])
+    if filtros.get("mes"):
+        query = query.eq("mes", filtros["mes"])
+    atendimentos = query.execute().data
+    return jsonify(atendimentos)
+
         
 # =========================================================
 # EXECUÇÃO
@@ -2030,6 +2098,7 @@ def get_ficha_tutoria(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
