@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submeter Plano de Aula / Agenda</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A',
+                        'dark-secondary': '#1E293B',
+                        'accent': '#10B981',
+                        'text-light': '#F8FAFC',
+                        'info': '#3B82F6',
+                        'danger': '#DC2626',
+                        'input-bg': '#374151',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+        
+        let professores = [];
+        let disciplinas = [];
+        let salas = [];
+
+        document.addEventListener('DOMContentLoaded', loadLookups);
+
+        function mostrarMensagem(texto, tipo) {
+             const msgElement = document.getElementById('mensagem-status');
+             msgElement.textContent = texto;
+             msgElement.className = `p-3 rounded mt-4 text-white font-bold text-center w-full`;
+             
+             if (tipo === 'success') msgElement.classList.add('bg-accent');
+             else if (tipo === 'danger') msgElement.classList.add('bg-danger');
+             else msgElement.classList.add('bg-info');
+
+             msgElement.style.display = 'block';
+             setTimeout(() => (msgElement.style.display = 'none'), 5000);
+        }
+
+        async function loadLookups() {
+            mostrarMensagem('Carregando dados iniciais...', 'info');
+            try {
+                professores = await (await fetch('/api/funcionarios')).json();
+                disciplinas = await (await fetch('/api/disciplinas')).json();
+                salas = await (await fetch('/api/salas')).json();
+                
+                populateSelect('input-professor', professores, 'id', 'nome', 'SELECIONE O PROFESSOR');
+                populateSelect('input-disciplina', disciplinas, 'abreviacao', 'nome', 'SELECIONE A DISCIPLINA');
+                populateSelect('input-sala', salas, 'id', 'nome_turma', 'SELECIONE A TURMA');
+                
+                mostrarMensagem('Pronto para submissão.', 'success');
+            } catch (e) {
+                mostrarMensagem('Erro ao carregar lookups.', 'danger');
+            }
+        }
+
+        function populateSelect(id, data, valueKey, textKey, defaultText) {
+            const select = document.getElementById(id);
+            select.innerHTML = `<option value="">${defaultText}</option>`;
+            data.forEach(item => {
+                select.insertAdjacentHTML('beforeend', `<option value="${item[valueKey]}">${item[textKey]}</option>`);
+            });
+        }
+        
+        // =======================================================
+        // SUBMISSÃO DO FORMULÁRIO - ROTA POST /api/aulas/submeter_documento
+        // =======================================================
+        window.submeterDocumento = async function(event) {
+            event.preventDefault();
+            
+            const form = document.getElementById('document-form');
+            const tipoDoc = form.elements['input-tipo-doc'].value;
+            const professorId = form.elements['input-professor'].value;
+            const disciplina = form.elements['input-disciplina'].value;
+            const tema = form.elements['input-tema'].value.trim();
+            const periodoInicio = form.elements['input-periodo-inicio'].value;
+            
+            if (!tipoDoc || !professorId || !disciplina || !tema || !periodoInicio) {
+                 mostrarMensagem("Erro: Preencha os campos obrigatórios.", 'danger');
+                 return;
+            }
+            
+            const documento = {
+                tipo: tipoDoc,
+                professor_id: professorId,
+                disciplina: disciplina,
+                sala_serie: form.elements['input-sala'].value, // Sala ID
+                periodo_inicio: periodoInicio,
+                periodo_fim: form.elements['input-periodo-fim'].value || null,
+                bimestre: form.elements['input-bimestre'].value || null,
+                conteudo_principal: tema,
+                // Conteúdo completo do documento (simulando campos do DOCX)
+                conteudo_json: {
+                    tema: tema,
+                    habilidade: form.elements['input-habilidade'].value.trim(),
+                    objetivo: form.elements['input-objetivo'].value.trim(),
+                    desenvolvimento: form.elements['input-desenvolvimento'].value.trim(),
+                    avaliacao: form.elements['input-avaliacao'].value.trim(),
+                }
+            };
+
+            mostrarMensagem(`Submetendo ${tipoDoc}...`, 'info');
+
+            try {
+                const response = await fetch('/api/aulas/submeter_documento', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(documento)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    mostrarMensagem(data.message, 'success');
+                    form.reset();
+                } else {
+                    mostrarMensagem(`Erro: ${data.error}`, 'danger');
+                }
+
+            } catch (e) {
+                console.error("Erro ao submeter documento:", e);
+                mostrarMensagem("Erro de comunicação com o servidor.", 'danger');
+            }
+        }
+    </script>
+    <style>
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background-color: #374151; 
+            color: #f3f4f6;
+            border: 1px solid #4b5563;
+        }
+    </style>
+</head>
+<body class="bg-dark-primary font-sans text-text-light">
+    
+    <div id="app-container" class="flex flex-col items-center justify-start p-4 md:p-8 min-h-screen">
+
+        <header class="w-full text-center mb-8 mt-4">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-info leading-tight tracking-wider">
+                GESTÃO DE PLANO DE AULA / AGENDA SEMANAL
+            </h1>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                SUBMISSÃO DE DOCUMENTOS
+            </h2>
+             <div class="mt-4">
+                 <button type="button" onclick="window.location.href='{{ url_for('main.gestao_aulas') }}'"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    <span>VOLTAR AO MENU AULAS</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="mensagem-status" style="display:none;" class="p-3 mb-4 text-sm font-medium text-white rounded-lg text-center w-full max-w-5xl" role="alert"></div>
+
+        <main class="w-full max-w-5xl flex-grow space-y-8">
+            
+            <div class="bg-dark-secondary p-6 rounded-xl shadow-2xl">
+                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-accent mb-4">Detalhes do Documento</h3>
+                
+                <form id="document-form" onsubmit="submeterDocumento(event)">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        
+                        <div>
+                            <label for="input-tipo-doc" class="block text-sm font-medium mb-1">Tipo *:</label>
+                            <select id="input-tipo-doc" name="input-tipo-doc" required class="form-input text-base">
+                                <option value="">SELECIONE</option>
+                                <option value="PLANO_AULA">PLANO DE AULA</option>
+                                <option value="AGENDA_SEMANAL">AGENDA SEMANAL</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="input-professor" class="block text-sm font-medium mb-1">Professor *:</label>
+                            <select id="input-professor" name="input-professor" required class="form-input text-base"></select>
+                        </div>
+                        
+                        <div>
+                            <label for="input-disciplina" class="block text-sm font-medium mb-1">Disciplina *:</label>
+                            <select id="input-disciplina" name="input-disciplina" required class="form-input text-base"></select>
+                        </div>
+
+                        <div>
+                            <label for="input-sala" class="block text-sm font-medium mb-1">Turma (Principal) *:</label>
+                            <select id="input-sala" name="input-sala" required class="form-input text-base"></select>
+                        </div>
+                        
+                        <div class="md:col-span-2">
+                             <label for="input-tema" class="block text-sm font-medium mb-1">Tema / Conteúdo Principal *:</label>
+                            <input type="text" id="input-tema" name="input-tema" required placeholder="Ex: Equação do 2º Grau (Jornada SAEB)"
+                                   class="form-input text-base">
+                        </div>
+
+                        <div>
+                            <label for="input-periodo-inicio" class="block text-sm font-medium mb-1">Período Início *:</label>
+                            <input type="date" id="input-periodo-inicio" name="input-periodo-inicio" required
+                                   class="form-input text-base">
+                        </div>
+
+                        <div>
+                            <label for="input-periodo-fim" class="block text-sm font-medium mb-1">Período Fim:</label>
+                            <input type="date" id="input-periodo-fim" name="input-periodo-fim"
+                                   class="form-input text-base">
+                        </div>
+                    </div>
+                    
+                    <h4 class="text-lg font-bold border-b border-gray-700 pb-1 text-info mb-4 mt-8">Estrutura do Plano de Aula (Detalhes)</h4>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                         <div>
+                            <label for="input-bimestre" class="block text-sm font-medium mb-1">Bimestre:</label>
+                            <select id="input-bimestre" name="input-bimestre" class="form-input text-base">
+                                <option value="">SELECIONE</option>
+                                <option value="1">1º Bimestre</option>
+                                <option value="2">2º Bimestre</option>
+                                <option value="3">3º Bimestre</option>
+                                <option value="4">4º Bimestre</option>
+                            </select>
+                        </div>
+                        <div>
+                             <label for="input-habilidade" class="block text-sm font-medium mb-1">Habilidade:</label>
+                            <textarea id="input-habilidade" name="input-habilidade" rows="3" placeholder="(EF89TEC21) Usar o raciocínio e a lógica..." class="form-input text-base"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="input-objetivo" class="block text-sm font-medium mb-1">Objetivo da Aula:</label>
+                            <textarea id="input-objetivo" name="input-objetivo" rows="4" placeholder="O que o aluno deve ser capaz de fazer ao final da aula." class="form-input text-base"></textarea>
+                        </div>
+                        <div>
+                            <label for="input-avaliacao" class="block text-sm font-medium mb-1">Avaliação:</label>
+                            <textarea id="input-avaliacao" name="input-avaliacao" rows="4" placeholder="Como verificar o alcance do objetivo." class="form-input text-base"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="input-desenvolvimento" class="block text-sm font-medium mb-1">Desenvolvimento da Aula (Metodologia):</label>
+                        <textarea id="input-desenvolvimento" name="input-desenvolvimento" rows="6" placeholder="Passo a passo, ações do professor e do aluno." class="form-input text-base"></textarea>
+                    </div>
+
+                    <button type="submit" 
+                            class="mt-6 w-full bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg flex items-center justify-center space-x-2 transform hover:scale-[1.005]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.27a.997.997 0 00-.079-.092A2 2 0 0014.28 3H5.72a2 2 0 00-1.94 1.834l-.083.473A2 2 0 003 7.35V17a2 2 0 002 2h14a2 2 0 002-2V7.35a2 2 0 00-1.018-1.742l-.083-.053z" />
+                        </svg>
+                        <span>SUBMETER DOCUMENTO PARA VALIDAÇÃO</span>
+                    </button>
+                    
+                </form>
+            </div>
+        </main>
+        
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
+            </p>
+            <p class="text-xs font-light tracking-wide">
+                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS
+            </p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

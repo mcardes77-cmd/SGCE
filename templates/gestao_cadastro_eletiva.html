@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Eletivas</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        // Configuração personalizada do Tailwind
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0F172A', 
+                        'dark-secondary': '#1E293B', 
+                        'accent': '#10B981', 
+                        'text-light': '#F8FAFC', 
+                        'input-bg': '#374151', 
+                        'danger': '#DC2626', 
+                        'success': '#10B981', 
+                        'warning': '#F59E0B',
+                        'info': '#3B82F6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadEletivasTable();
+        });
+
+        function mostrarMensagem(texto, tipo) {
+            const msgElement = document.getElementById('mensagem-status');
+            msgElement.textContent = texto;
+            
+            msgElement.classList.remove('hidden', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+
+            if (tipo === 'success') {
+                msgElement.classList.add('bg-success');
+            } else if (tipo === 'danger') {
+                msgElement.classList.add('bg-danger');
+            } else if (tipo === 'warning') {
+                msgElement.classList.add('bg-warning');
+            } else if (tipo === 'info') {
+                msgElement.classList.add('bg-info');
+            }
+
+            msgElement.classList.remove('hidden');
+            setTimeout(() => {
+                msgElement.classList.add('hidden');
+            }, 5000);
+        }
+
+        // =======================================================
+        // LÓGICA DE CADASTRO (ADICIONAR) - ROTA POST /api/eletivas
+        // =======================================================
+        window.addEletiva = async function(event) {
+            event.preventDefault();
+            
+            const form = document.getElementById('add-eletiva-form');
+            const nome = form.elements['input-nome'].value.trim();
+            const semestre = form.elements['input-semestre'].value;
+            
+            if (!nome || !semestre) {
+                 mostrarMensagem("Erro: Preencha todos os campos obrigatórios.", 'danger');
+                 return;
+            }
+
+            mostrarMensagem('Adicionando nova eletiva...', 'info');
+
+            try {
+                const response = await fetch('/api/eletivas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nome, semestre })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    mostrarMensagem(data.message, 'success');
+                    loadEletivasTable();
+                    form.reset();
+                } else {
+                    mostrarMensagem(`Erro: ${data.error}`, 'danger');
+                }
+
+            } catch (e) {
+                console.error("Erro ao adicionar eletiva:", e);
+                mostrarMensagem("Erro de comunicação com o servidor. Verifique o console.", 'danger');
+            }
+        }
+
+        // =======================================================
+        // LÓGICA DE EXCLUSÃO - ROTA DELETE /api/eletivas/<eletiva_id>
+        // =======================================================
+        window.deleteEletiva = async function(docId, nome) {
+            if (!confirm(`Tem certeza que deseja EXCLUIR a Eletiva "${nome}"? Esta ação é irreversível.`)) {
+                return;
+            }
+            
+            mostrarMensagem(`Excluindo cadastro da eletiva "${nome}"...`, 'info');
+
+            try {
+                // Rota DELETE /api/eletivas/<eletiva_id>
+                const response = await fetch(`/api/eletivas/${docId}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    mostrarMensagem(`Cadastro da eletiva "${nome}" excluído com sucesso.`, 'success');
+                    loadEletivasTable();
+                } else {
+                    const data = await response.json();
+                    mostrarMensagem(`Erro ao excluir: ${data.error}`, 'danger');
+                }
+            } catch (e) {
+                console.error("Erro ao excluir eletiva:", e);
+                mostrarMensagem("Erro de comunicação com o servidor. Verifique o console.", 'danger');
+            }
+        }
+        
+        // =======================================================
+        // LÓGICA DE CARREGAMENTO DA TABELA - ROTA GET /api/eletivas
+        // =======================================================
+        window.loadEletivasTable = async function() {
+            const tableBody = document.getElementById('eletivas-table-body');
+            tableBody.innerHTML = '';
+            
+            try {
+                // Rota GET /api/eletivas
+                const response = await fetch('/api/eletivas'); 
+                const eletivas = await response.json();
+
+                if (eletivas.error) {
+                    tableBody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-danger">Erro ao carregar dados: ${eletivas.error}</td></tr>`;
+                    return;
+                }
+                
+                if (eletivas.length === 0) {
+                     tableBody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Nenhuma eletiva cadastrada.</td></tr>';
+                     return;
+                }
+                
+                // Ordena por Semestre e depois por Nome
+                eletivas.sort((a, b) => {
+                    if (a.semestre !== b.semestre) {
+                        return a.semestre.localeCompare(b.semestre);
+                    }
+                    return a.nome.localeCompare(b.nome);
+                });
+
+                eletivas.forEach(e => {
+                    const row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50">
+                        <td class="p-3 font-bold text-center text-secondary-accent">${e.semestre}</td>
+                        <td class="p-3 font-semibold text-text-light">${e.nome}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="deleteEletiva('${e.id}', '${e.nome}')"
+                                    class="bg-danger hover:bg-red-700 text-white font-bold py-1 px-3 rounded-md transition duration-200 text-sm">
+                                Excluir
+                            </button>
+                        </td>
+                    </tr>`;
+                    
+                    tableBody.insertAdjacentHTML('beforeend', row);
+                });
+
+            } catch (e) {
+                console.error("Erro de rede:", e);
+                tableBody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-danger">Erro ao conectar com a API do servidor.</td></tr>';
+            }
+        }
+    </script>
+    <style>
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background-color: #374151; 
+            color: #f3f4f6;
+            border: 1px solid #4b5563;
+        }
+    </style>
+</head>
+<body class="bg-dark-primary font-sans text-text-light">
+    
+    <div id="app-container" class="flex flex-col items-center justify-start p-4 md:p-8 min-h-screen">
+
+        <header class="w-full text-center mb-8 mt-4">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-info leading-tight tracking-wider">
+                MÓDULO DE CADASTRO
+            </h1>
+            <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
+                ELETIVAS
+            </h2>
+             <div class="mt-4">
+                 <button type="button" onclick="window.location.href='{{ url_for('main.gestao_cadastro') }}'"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    <span>VOLTAR PARA O MENU CADASTRO</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="mensagem-status" class="hidden p-3 mb-4 text-sm font-medium text-white rounded-lg text-center w-full max-w-xl" role="alert"></div>
+
+        <main class="w-full max-w-xl flex-grow space-y-8">
+            
+            <div class="bg-dark-secondary p-6 rounded-xl shadow-2xl">
+                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-accent mb-4">Adicionar Nova Eletiva</h3>
+                
+                <form id="add-eletiva-form" onsubmit="addEletiva(event)">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <div>
+                            <label for="input-semestre" class="block text-sm font-medium mb-1">Semestre *:</label>
+                            <select id="input-semestre" name="input-semestre" required class="form-input text-base">
+                                <option value="">SELECIONE O SEMESTRE</option>
+                                <option value="1º Semestre">1º Semestre</option>
+                                <option value="2º Semestre">2º Semestre</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="input-nome" class="block text-sm font-medium mb-1">Nome da Eletiva *:</label>
+                            <input type="text" id="input-nome" name="input-nome" required placeholder="Ex: Programação Web"
+                                   class="form-input text-base">
+                        </div>
+                        
+                    </div>
+                    
+                    <button type="submit" 
+                            class="mt-6 w-full bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg flex items-center justify-center space-x-2 transform hover:scale-[1.005]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>CADASTRAR ELETIVA</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="bg-dark-secondary p-6 rounded-xl shadow-2xl">
+                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-info mb-4">Eletivas Cadastradas</h3>
+                
+                <div class="overflow-x-auto rounded-lg shadow-lg border border-gray-700">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead class="bg-dark-primary">
+                            <tr>
+                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-32">SEMESTRE</th>
+                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">NOME DA ELETIVA</th>
+                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-24">AÇÃO</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eletivas-table-body" class="bg-dark-secondary divide-y divide-gray-700">
+                             </tbody>
+                    </table>
+                </div>
+                
+                <p class="mt-4 text-sm text-gray-400">Atenção: A lista de eletivas é usada na Ficha de Tutoria e nos relatórios.</p>
+            </div>
+
+
+        </main>
+        
+        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+            <p class="mb-1 text-base font-medium">
+                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
+            </p>
+            <p class="text-xs font-light tracking-wide">
+                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS
+            </p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

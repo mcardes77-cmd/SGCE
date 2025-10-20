@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão de Frequência - Relatório Mensal</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'dark-primary': '#0F172A',
+            'dark-secondary': '#1E293B',
+            'accent': '#10B981',
+            'text-light': '#F8FAFC',
+            'danger': '#DC2626',
+            'warning': '#FACC15'
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+        },
+      },
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      carregarSalas();
+      carregarMeses();
+      document.getElementById("btnVisualizar").addEventListener("click", visualizar);
+      document.getElementById("btnGerarPDF").addEventListener("click", gerarPDF);
+    });
+
+    async function carregarSalas() {
+      try {
+        const resp = await fetch("/api/salas");
+        if (!resp.ok) throw new Error("Erro ao carregar salas");
+        const salas = await resp.json();
+        const select = document.getElementById("salaSelect");
+        select.innerHTML = '<option value="">Selecione a Sala</option>';
+        salas.forEach(s => {
+          select.innerHTML += `<option value="${s.id}">${s.sala || s.nome}</option>`;
+        });
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao carregar salas.");
+      }
+    }
+
+    function carregarMeses() {
+      const meses = [
+        "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+        "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
+      ];
+      const sel = document.getElementById("mesSelect");
+      sel.innerHTML = '<option value="">Selecione o Mês</option>';
+      meses.forEach((m,i) => {
+        sel.innerHTML += `<option value="${i+1}">${m}</option>`;
+      });
+    }
+
+    async function visualizar() {
+      const sala = document.getElementById("salaSelect").value;
+      const mes = document.getElementById("mesSelect").value;
+      if (!sala || !mes) {
+        alert("Selecione a sala e o mês.");
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/frequencia?sala=${sala}&mes=${mes}`);
+        if (!resp.ok) throw new Error("Erro ao carregar frequência");
+        const dados = await resp.json();
+        montarTabela(dados, parseInt(mes));
+      } catch (e) {
+        console.error(e);
+        alert("Erro ao carregar relatório.");
+      }
+    }
+
+    function montarTabela(dados, mes) {
+      const container = document.getElementById("tabelaContainer");
+      container.innerHTML = "";
+      const ano = new Date().getFullYear();
+      const dias = [];
+      const totalDias = new Date(ano, mes, 0).getDate();
+
+      for (let d = 1; d <= totalDias; d++) {
+        const data = dayjs(`${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+        const diaSemana = data.day();
+        if (diaSemana !== 0 && diaSemana !== 6) dias.push(data);
+      }
+
+      const alunos = Array.isArray(dados) && dados.length ? dados : [];
+
+      let html = `
+        <div class="overflow-x-auto">
+          <table class="min-w-full border border-gray-700 text-sm text-center rounded-lg overflow-hidden">
+            <thead class="bg-dark-primary">
+              <tr>
+                <th class="px-2 py-2 border border-gray-700 text-gray-300">Aluno</th>`;
+      dias.forEach(d => {
+        html += `<th class="px-2 py-2 border border-gray-700 text-gray-400">${d.format("DD")}</th>`;
+      });
+      html += `</tr></thead><tbody>`;
+
+      if (alunos.length === 0) {
+        html += `<tr><td colspan="${dias.length + 1}" class="text-gray-400 py-4">Nenhum registro encontrado, mas a estrutura está pronta para o mês selecionado.</td></tr>`;
+      } else {
+        alunos.forEach(aluno => {
+          html += `<tr><td class="border border-gray-700 text-left px-2">${aluno.nome}</td>`;
+          dias.forEach(d => {
+            const dataKey = d.format("YYYY-MM-DD");
+            const freq = aluno.frequencia?.[dataKey] || "";
+            let cor = "text-gray-500";
+            if (freq === "P") cor = "text-green-500 font-bold";
+            if (freq === "F") cor = "text-red-500 font-bold";
+            if (["PA","PS","PSA"].includes(freq)) cor = "text-yellow-400 font-bold";
+            html += `<td class="border border-gray-700 ${cor}">${freq}</td>`;
+          });
+          html += `</tr>`;
+        });
+      }
+
+      html += `</tbody></table>
+        <div class="mt-4 text-gray-400 text-sm text-left">
+          <p><span class="text-green-500 font-bold">P</span> = Presença |
+             <span class="text-red-500 font-bold">F</span> = Ausente |
+             <span class="text-yellow-400 font-bold">PA</span> = Entrada Atrasada |
+             <span class="text-yellow-400 font-bold">PS</span> = Saída Antecipada |
+             <span class="text-yellow-400 font-bold">PSA</span> = Entrada Atrasada e Saída Antecipada
+          </p>
+        </div>
+      </div>`;
+
+      container.innerHTML = html;
+    }
+
+    async function gerarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4"
+      });
+
+      const salaSelect = document.getElementById("salaSelect");
+      const mesSelect = document.getElementById("mesSelect");
+      const salaNome = salaSelect.options[salaSelect.selectedIndex]?.text || "Sala não selecionada";
+      const mesNome = mesSelect.options[mesSelect.selectedIndex]?.text || "Mês não selecionado";
+      const ano = new Date().getFullYear();
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("RELATÓRIO DE FREQUÊNCIA", doc.internal.pageSize.getWidth() / 2, 40, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      doc.text(`Sala: ${salaNome} — Mês: ${mesNome} / ${ano}`, doc.internal.pageSize.getWidth() / 2, 60, { align: "center" });
+
+      await doc.html(document.getElementById("tabelaContainer"), {
+        x: 20,
+        y: 80,
+        html2canvas: {
+          scale: 0.6,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: document.getElementById("tabelaContainer").scrollWidth,
+        },
+        callback: function (pdf) {
+          pdf.save(`relatorio_frequencia_${salaNome}_${mesNome}_${ano}.pdf`);
+        },
+      });
+    }
+  </script>
+</head>
+
+<body class="bg-dark-primary min-h-screen p-8 text-text-light">
+  <div class="max-w-7xl mx-auto">
+    <header class="text-center mb-8 mt-4">
+      <h1 class="text-2xl font-light border-b border-gray-700 pb-2 inline-block">
+        SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR
+      </h1><br>
+      <h2 class="text-lg font-light border-b border-gray-700 pb-2 inline-block">
+        GESTÃO DE FREQUÊNCIA - RELATÓRIO MENSAL
+      </h2>
+
+      <div class="flex justify-center gap-4 mt-4">
+        <button onclick="window.location.href='{{ url_for('main.gestao_frequencia') }}'"
+          class="px-4 py-2 text-sm rounded-lg border border-gray-600 hover:bg-gray-700 flex items-center">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h7"/>
+          </svg>
+          Voltar ao Menu
+        </button>
+
+        <button id="btnGerarPDF"
+          class="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-green-600 text-white flex items-center">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 4v16m8-8H4"/>
+          </svg>
+          Gerar PDF
+        </button>
+      </div>
+    </header>
+
+    <main class="bg-dark-secondary rounded-xl shadow-2xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Sala</label>
+          <select id="salaSelect" class="w-full p-3 bg-gray-800 rounded border border-gray-700"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Mês</label>
+          <select id="mesSelect" class="w-full p-3 bg-gray-800 rounded border border-gray-700"></select>
+        </div>
+        <div class="flex items-end">
+          <button id="btnVisualizar"
+            class="w-full bg-accent hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+            Visualizar Frequência
+          </button>
+        </div>
+      </div>
+
+      <div id="tabelaContainer" class="overflow-x-auto text-center text-gray-400">
+        Selecione a sala e o mês para visualizar a frequência.
+      </div>
+    </main>
+
+    <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+      <p class="text-base font-medium">DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES</p>
+      <p class="text-xs font-light">LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO</p>
+    </footer>
+  </div>
+</body>
+</html>

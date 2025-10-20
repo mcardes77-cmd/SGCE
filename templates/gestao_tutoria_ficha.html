@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ficha de Tutoria</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const SUPABASE_URL = "{{ supabase_url }}";
+    const SUPABASE_ANON_KEY = "{{ supabase_anon }}";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let selectedAlunoId = null;
+
+    async function loadTutores() {
+        const selectTutor = document.getElementById('filter-tutor');
+        selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
+
+        const { data: tutores, error } = await supabase.from('d_tutores').select('id,nome');
+        if (error) { console.error(error); return; }
+
+        tutores.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(tutor=>{
+            const option = document.createElement('option');
+            option.value = tutor.id;
+            option.textContent = tutor.nome;
+            selectTutor.appendChild(option);
+        });
+
+        loadAlunos(); // reset
+    }
+
+    async function loadAlunos() {
+        const tutorId = document.getElementById('filter-tutor').value;
+        const selectAluno = document.getElementById('filter-aluno');
+        selectedAlunoId = null;
+
+        selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
+        selectAluno.disabled = !tutorId;
+
+        if (!tutorId) return;
+
+        const { data: alunos, error } = await supabase
+            .from('d_alunos')
+            .select('id,nome')
+            .eq('tutor_id', tutorId);
+
+        if (error) { console.error(error); return; }
+
+        alunos.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(aluno=>{
+            const option = document.createElement('option');
+            option.value = aluno.id;
+            option.textContent = aluno.nome;
+            selectAluno.appendChild(option);
+        });
+
+        document.getElementById('ficha-container').innerHTML = '';
+    }
+
+    async function showFichaAluno() {
+        const alunoId = document.getElementById('filter-aluno').value;
+        selectedAlunoId = alunoId;
+        const fichaContainer = document.getElementById('ficha-container');
+        if (!alunoId) { fichaContainer.innerHTML=''; return; }
+
+        // ===============================
+        // BUSCAR DADOS DA TABELA CORRETA
+        // ===============================
+        const { data: fichaData, error: fichaError } = await supabase
+            .from('tutoria_geral')
+            .select('*')
+            .eq('aluno_id', alunoId)
+            .single();
+        if (fichaError) console.error(fichaError);
+
+        const frequencia = fichaData?.frequencia || { presencas: 0, faltas: 0 };
+        const notas = fichaData?.notas || {};
+        const projetoVida = fichaData?.projeto_vida || {};
+        const historico = fichaData?.historico || [];
+
+        // Monta HTML das tabelas
+        let notasHtml = '';
+        for (const disc in notas) {
+            let media = 0;
+            let count = 0;
+            for (const b in notas[disc]) { media += notas[disc][b]; if (notas[disc][b]>0) count++; }
+            media = count>0 ? (media/count).toFixed(1) : '-';
+            notasHtml += `<tr class="border-b border-gray-700">
+                            <td class="px-3 py-2">${disc}</td>
+                            <td class="px-3 py-2 text-center">${media}</td>
+                          </tr>`;
+        }
+
+        let projetoHtml = '';
+        for (const b in projetoVida) {
+            projetoHtml += `<tr class="border-b border-gray-700">
+                                <td class="px-3 py-2">${b}</td>
+                                <td class="px-3 py-2">${projetoVida[b]}</td>
+                            </tr>`;
+        }
+
+        let historicoHtml = '';
+        historico.forEach(item=>{
+            historicoHtml += `<tr class="border-b border-gray-700">
+                                <td class="px-3 py-2">${item.data_registro}</td>
+                                <td class="px-3 py-2">${item.tipo_atendimento}</td>
+                                <td class="px-3 py-2">${item.descricao_atendimento}</td>
+                             </tr>`;
+        });
+
+        fichaContainer.innerHTML = `
+            <h3 class="text-xl font-bold border-b border-gray-600 pb-2 mt-4 text-indigo-400">2. Ficha do Aluno</h3>
+            
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                <div class="bg-dark-secondary p-4 rounded-lg shadow-lg">
+                    <h4 class="font-semibold mb-2 text-indigo-300">Frequência</h4>
+                    <p>Presenças: <span class="font-bold">${frequencia.presencas}</span></p>
+                    <p>Faltas: <span class="font-bold">${frequencia.faltas}</span></p>
+                </div>
+
+                <div class="bg-dark-secondary p-4 rounded-lg shadow-lg">
+                    <h4 class="font-semibold mb-2 text-indigo-300">Resumo de Notas</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-700">
+                            <thead>
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs text-gray-400 uppercase">Disciplina</th>
+                                    <th class="px-3 py-2 text-center text-xs text-gray-400 uppercase">Média</th>
+                                </tr>
+                            </thead>
+                            <tbody>${notasHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-dark-secondary p-4 rounded-lg shadow-lg">
+                    <h4 class="font-semibold mb-2 text-indigo-300">Projeto de Vida</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-700">
+                            <thead>
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs text-gray-400 uppercase">Bimestre</th>
+                                    <th class="px-3 py-2 text-left text-xs text-gray-400 uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>${projetoHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-6 bg-dark-secondary p-4 rounded-lg shadow-lg overflow-x-auto">
+                <h4 class="font-semibold mb-2 text-indigo-300">Histórico de Atendimentos</h4>
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead>
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs text-gray-400 uppercase">Data</th>
+                            <th class="px-3 py-2 text-left text-xs text-gray-400 uppercase">Tipo</th>
+                            <th class="px-3 py-2 text-left text-xs text-gray-400 uppercase">Descrição</th>
+                        </tr>
+                    </thead>
+                    <tbody>${historicoHtml || '<tr><td colspan="3" class="p-4 text-center text-gray-400">Sem atendimentos registrados.</td></tr>'}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { loadTutores(); });
+</script>
+
+<style>
+body { background-color: #0F172A; color: #F8FAFC; font-family: 'Inter', sans-serif; }
+.form-input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; background-color: #1E293B; color: #F8FAFC; border: 1px solid #4b5563; }
+</style>
+</head>
+<body class="bg-dark-primary">
+
+<div class="flex flex-col items-center min-h-screen p-4 md:p-8">
+    <header class="w-full text-center mb-8">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-accent leading-tight tracking-wider">GESTÃO DE TUTORIA</h1>
+        <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">FICHA DO ALUNO</h2>
+        <div class="mt-4">
+            <button type="button" onclick="window.location.href='{{ url_for('main.gestao_tutoria') }}'"
+                    class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">
+                VOLTAR PARA O MENU DE TUTORIA
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-5xl flex-grow">
+
+        <div class="bg-dark-secondary p-6 rounded-xl shadow-2xl space-y-6">
+
+            <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400">1. Seleção e Filtros</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                    <label for="filter-tutor" class="block text-sm font-medium mb-1">Tutor *:</label>
+                    <select id="filter-tutor" class="form-input" onchange="loadAlunos()" required>
+                        <option value="">SELECIONE O TUTOR</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filter-aluno" class="block text-sm font-medium mb-1">Aluno *:</label>
+                    <select id="filter-aluno" class="form-input" onchange="showFichaAluno()" disabled required>
+                        <option value="">SELECIONE O ALUNO</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="ficha-container" class="mt-6">
+                </div>
+
+        </div>
+
+    </main>
+
+    <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
+        <p class="mb-1 text-base font-medium">DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES</p>
+        <p class="text-xs font-light tracking-wide">LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS</p>
+    </footer>
+</div>
+
+</body>
+</html>
