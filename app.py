@@ -946,27 +946,50 @@ def salvar_atraso():
         dados = request.get_json()
         if not dados:
             return jsonify({"error": "Nenhum dado recebido"}), 400
+        
+        # 1. Extraindo dados do JSON (Corrigido)
+        aluno_id = dados.get('aluno_id')
+        sala_id = dados.get('sala_id')
+        registro_data = dados.get('data')
 
+        # 2. Status e Validação (Atraso é geralmente 'PA' - Presente com Atraso)
+        novo_status = "PA" 
+        
+        if not all([aluno_id, sala_id, registro_data]):
+             return jsonify({"error": "Dados essenciais (aluno, sala, data) estão ausentes."}), 400
+
+        # 3. Montando o Payload
+        # Assumindo que as colunas no DB são aluno_id, sala_id, hora_atraso, motivo_atraso, etc.
         payload = {
             "aluno_id": aluno_id,
             "sala_id": sala_id,
             "data": registro_data,
-            "hora_atraso": data['hora'],
-            "motivo_atraso": data['motivo'],
-            "responsavel_atraso": data.get('responsavel'),
-            "telefone_atraso": data.get('telefone'),
+            "hora_atraso": dados.get('hora'),
+            "motivo_atraso": dados.get('motivo'),
+            "responsavel_atraso": dados.get('responsavel'),
+            "telefone_atraso": dados.get('telefone'),
             "status": novo_status
         }
 
-        response = supabase.table("f_frequencia").upsert(payload).execute()
+        # 4. Executando o UPSERT (Atualiza se 'aluno_id' e 'data' já existirem)
+        response = supabase.table("f_frequencia").upsert(
+            payload, 
+            # As chaves de conflito garantem que a frequência para o aluno NAQUELE dia seja atualizada.
+            on_conflict="aluno_id, data"
+        ).execute()
 
+        # 5. Verificando a resposta do Supabase
         if not response or not getattr(response, "data", None):
-            return jsonify({"error": "Falha ao salvar no Supabase"}), 500
+             # Captura erros mais específicos do Supabase, se houver
+            error_message = getattr(response, "error", "Falha desconhecida no Supabase.")
+            print(f"[ERROR] Falha no Supabase: {error_message}")
+            return jsonify({"error": f"Falha ao salvar no Supabase: {error_message}"}), 500
 
-        return jsonify({"message": "Entrada Atrasada salva com sucesso."}), 200
+        return jsonify({"message": "Entrada Atrasada salva e frequência atualizada com sucesso."}), 200
 
     except Exception as e:
-        print(f"[ERROR] Erro no Supabase ao salvar saída antecipada: {e}")
+        # Corrigindo a mensagem de erro que estava incorreta
+        print(f"[ERROR] Erro no Supabase ao salvar atraso: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/salvar_saida_antecipada', methods=['POST'])
@@ -2009,6 +2032,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
