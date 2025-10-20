@@ -1,6 +1,0 @@
-Flask
-supabase
-python-dotenv
-gunicorn
-fpdf2
-
