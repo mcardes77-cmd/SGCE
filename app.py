@@ -1860,59 +1860,73 @@ def api_get_alunos_por_sala(sala_id):
 # /api/frequencia?sala=<id>&mes=<num>&ano=<yyyy (opcional)>
 # Retorna lista de alunos da sala e, para cada aluno, um objeto "frequencia" com chaves "YYYY-MM-DD" -> status
 @app.route("/api/frequencia", methods=["GET"])
-def api_frequencia():
+def api_relatorio_frequencia():
+    """
+    Retorna a frequência mensal de todos os alunos de uma sala.
+    Mesmo sem registros, os alunos e os dias aparecem na tabela.
+    """
     try:
         sala_id = request.args.get("sala")
-        mes = request.args.get("mes")
-        ano = request.args.get("ano") or str(datetime.now().year)
-
+        mes = request.args.get("mes", type=int)
         if not sala_id or not mes:
-            return jsonify({"error":"sala e mes são obrigatórios"}), 400
-        sala_id_int = int(sala_id)
-        mes_int = int(mes)
-        ano_int = int(ano)
+            return jsonify({"error": "Parâmetros 'sala' e 'mes' são obrigatórios."}), 400
 
-        # 1) lista alunos da sala
-        resp_alunos = supabase.table('d_alunos').select('id, nome').eq('sala_id', sala_id_int).order('nome').execute()
-        alunos = handle_supabase_response(resp_alunos)
-        aluno_ids = [a['id'] for a in alunos] if alunos else []
+        ano = datetime.now().year
+        data_inicio = f"{ano}-{mes:02d}-01"
+        ultimo_dia = calendar.monthrange(ano, mes)[1]
+        data_fim = f"{ano}-{mes:02d}-{ultimo_dia}"
 
-        if not aluno_ids:
-            # retorna estrutura padrão vazia
-            return jsonify([]), 200
+        # Busca todos os alunos da sala
+        alunos_resp = supabase.table("d_alunos") \
+            .select("id, nome") \
+            .eq("sala_id", sala_id) \
+            .order("nome") \
+            .execute()
+        alunos = handle_supabase_response(alunos_resp)
 
-        # 2) busca registros f_frequencia para esses alunos no mês/ano
-        inicio = f"{ano_int}-{mes_int:02d}-01"
-        fim = f"{ano_int}-{mes_int:02d}-{monthrange(ano_int, mes_int)[1]:02d}"
+        # Busca registros de frequência do mês
+        freq_resp = supabase.table("f_frequencia") \
+            .select("aluno_id, data, status") \
+            .eq("sala_id", sala_id) \
+            .gte("data", data_inicio) \
+            .lte("data", data_fim) \
+            .execute()
+        frequencias = handle_supabase_response(freq_resp)
 
-        resp_freq = supabase.table('f_frequencia').select('*')\
-            .in_('aluno_id', aluno_ids)\
-            .gte('data', inicio).lte('data', fim).order('aluno_id').execute()
-        freq_raw = handle_supabase_response(resp_freq)
+        # Monta dicionário: { aluno_id: { data: status } }
+        freq_dict = {}
+        for f in frequencias:
+            aluno_id = f.get("aluno_id")
+            data = f.get("data")
+            status = f.get("status")
+            if aluno_id not in freq_dict:
+                freq_dict[aluno_id] = {}
+            freq_dict[aluno_id][data] = status
 
-        # 3) monta mapa (aluno_id, data) -> registro
-        freq_map = {}
-        for r in freq_raw:
-            key = (r.get('aluno_id'), r.get('data'))
-            freq_map[key] = r
+        # Gera estrutura completa para todos os alunos e todos os dias úteis
+        resultados = []
+        for aluno in alunos:
+            aluno_id = aluno.get("id")
+            nome = aluno.get("nome")
+            aluno_freq = {}
 
-        resultado = []
-        for a in alunos:
-            aid = a['id']
-            resultado.append({
-                "id": aid,
-                "nome": a['nome'],
-                "frequencia": {}  # preenchido abaixo no frontend
+            for dia in range(1, ultimo_dia + 1):
+                data = f"{ano}-{mes:02d}-{dia:02d}"
+                dia_semana = datetime.strptime(data, "%Y-%m-%d").weekday()
+                if dia_semana in [5, 6]:  # pula sábado e domingo
+                    continue
+                aluno_freq[data] = freq_dict.get(aluno_id, {}).get(data, "")
+
+            resultados.append({
+                "id": aluno_id,
+                "nome": nome,
+                "frequencia": aluno_freq
             })
-            # Preenchimento detalhado fica a cargo do frontend, mas vamos retornar registros encontrados:
-        # Para conveniência retornamos também freq_raw agrupado
-        return jsonify({
-            "alunos": resultado,
-            "registros": freq_raw
-        }), 200
+
+        return jsonify(resultados), 200
 
     except Exception as e:
-        logging.exception("Erro /api/frequencia")
+        logging.exception("Erro ao montar relatório de frequência")
         return jsonify({"error": str(e)}), 500
 
 
@@ -2033,6 +2047,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
