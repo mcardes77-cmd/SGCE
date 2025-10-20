@@ -846,6 +846,14 @@ def api_get_agenda_semanal():
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar agenda semanal: {e}", "status": 500}), 500
 
+@app.route('/gestao_tutoria_ficha')
+def gestao_tutoria_ficha():
+    return render_template(
+        'gestao_tutoria_ficha.html',
+        supabase_url=os.getenv("SUPABASE_URL"),
+        supabase_anon=os.getenv("SUPABASE_ANON_KEY")
+    )
+
 @app.route('/api/guia_aprendizagem', methods=['GET'])
 def api_get_guia_aprendizagem():
     disciplina_id = request.args.get('disciplina_id')
@@ -2047,6 +2055,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
