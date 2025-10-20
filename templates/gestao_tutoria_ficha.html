@@ -12,7 +12,6 @@
 <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    // As variáveis são injetadas pelo Flask via render_template()
     const SUPABASE_URL = "{{ supabase_url }}";
     const SUPABASE_ANON_KEY = "{{ supabase_anon }}";
 
@@ -20,9 +19,6 @@
 
     let selectedAlunoId = null;
 
-    // ===============================
-    // CARREGAR TUTORES
-    // ===============================
     async function loadTutores() {
         const selectTutor = document.getElementById('filter-tutor');
         selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
@@ -40,9 +36,6 @@
         loadAlunos(); // reset
     }
 
-    // ===============================
-    // CARREGAR ALUNOS POR TUTOR
-    // ===============================
     async function loadAlunos() {
         const tutorId = document.getElementById('filter-tutor').value;
         const selectAluno = document.getElementById('filter-aluno');
@@ -70,60 +63,28 @@
         document.getElementById('ficha-container').innerHTML = '';
     }
 
-    // ===============================
-    // CARREGAR FICHA DO ALUNO
-    // ===============================
     async function showFichaAluno() {
         const alunoId = document.getElementById('filter-aluno').value;
         selectedAlunoId = alunoId;
         const fichaContainer = document.getElementById('ficha-container');
         if (!alunoId) { fichaContainer.innerHTML=''; return; }
 
-        // Frequência
-        const { data: freqData, error: freqError } = await supabase
-            .from('f_frequencia')
-            .select('frequencia')
+        // ===============================
+        // BUSCAR DADOS DA TABELA CORRETA
+        // ===============================
+        const { data: fichaData, error: fichaError } = await supabase
+            .from('tutoria_geral')
+            .select('*')
             .eq('aluno_id', alunoId)
-            .order('data_registro', { ascending: false })
-            .limit(1)
             .single();
+        if (fichaError) console.error(fichaError);
 
-        if (freqError) console.error(freqError);
-        const frequencia = freqData?.frequencia || { presencas: 0, faltas: 0 };
+        const frequencia = fichaData?.frequencia || { presencas: 0, faltas: 0 };
+        const notas = fichaData?.notas || {};
+        const projetoVida = fichaData?.projeto_vida || {};
+        const historico = fichaData?.historico || [];
 
-        // Notas resumidas
-        const { data: notasData, error: notasError } = await supabase
-            .from('f_frequencia')
-            .select('notas')
-            .eq('aluno_id', alunoId)
-            .order('data_registro', { ascending: false })
-            .limit(1)
-            .single();
-
-        if (notasError) console.error(notasError);
-        const notas = notasData?.notas || {};
-
-        // Projeto de Vida
-        const { data: projData, error: projError } = await supabase
-            .from('f_frequencia')
-            .select('projeto_vida')
-            .eq('aluno_id', alunoId)
-            .order('data_registro', { ascending: false })
-            .limit(1)
-            .single();
-        if (projError) console.error(projError);
-        const projetoVida = projData?.projeto_vida || {};
-
-        // Histórico de agendamentos
-        const { data: histData, error: histError } = await supabase
-            .from('f_agendamento')
-            .select('data_registro,tipo_atendimento,descricao_atendimento,status_agendamento')
-            .eq('aluno_id', alunoId)
-            .order('data_registro', { ascending: false });
-        if (histError) console.error(histError);
-        const historico = histData || [];
-
-        // Monta HTML
+        // Monta HTML das tabelas
         let notasHtml = '';
         for (const disc in notas) {
             let media = 0;
