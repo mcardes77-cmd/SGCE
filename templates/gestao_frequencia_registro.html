@@ -51,7 +51,7 @@
     <h2 class="text-lg text-text-light mt-2 font-light border-b border-gray-700 pb-2 inline-block">
       GESTÃO DE FREQUÊNCIA - REGISTRO DE FREQUÊNCIA 
     </h2>
-    <button onclick="window.location.href='/gestao_ocorrencia'"
+    <button onclick="window.location.href='/gestao_frequencia'"
       class="mt-4 px-4 py-2 text-sm font-medium rounded-lg text-gray-300 border border-gray-600 hover:bg-gray-700 transition duration-150 flex items-center mx-auto">
       <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
         xmlns="http://www.w3.org/2000/svg">
@@ -156,7 +156,7 @@
         const selectSala = document.getElementById('select-sala');
         selectSala.innerHTML = '<option value="">Selecione a Sala</option>';
         salasData.forEach(sala => {
-          selectSala.innerHTML += `<option value="${sala.id}">${sala.nome}</option>`;
+          selectSala.innerHTML += `<option value="${sala.id}">${sala.sala}</option>`;
         });
       } catch {
         mostrarMsg('Erro ao carregar salas.', 'alert-danger');
