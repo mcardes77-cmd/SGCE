@@ -2020,25 +2020,40 @@ def api_agendar_tutoria():
 
 
 # SALVAR ATENDIMENTO: usa tabela ocorrencias e campo 'numero' como chave
+# Localize e altere esta rota:
+
 @app.route("/api/salvar_atendimento", methods=["POST"])
 def salvar_atendimento():
     data = request.get_json()
     try:
         numero = data.get("id")
-        nivel = data.get("nivel")
+        nivel = data.get("nivel") # tutor, coordenacao, gestao, etc.
         texto = data.get("texto")
+        
         if not numero or not nivel or texto is None:
             return jsonify({"error": "Dados incompletos."}), 400
-        campo = f"atendimento_{nivel}"
-        response = supabase.table("ocorrencias").update({campo: texto}).eq("numero", numero).execute()
+        
+        # Define os campos a serem atualizados
+        campo_texto = f"atendimento_{nivel}"
+        campo_data = f"dt_atendimento_{nivel}" # <--- CAMPO DE DATA ADICIONADO
+        
+        agora = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
+        
+        update_payload = {
+            campo_texto: texto,
+            campo_data: agora # <--- DATA DE ATENDIMENTO
+        }
+        
+        # Atualiza a ocorrência
+        response = supabase.table("ocorrencias").update(update_payload).eq("numero", numero).execute()
+        
+        # ... (restante da lógica de resposta)
         if response and getattr(response, "data", None):
-            return jsonify({"message": "Atendimento salvo com sucesso!"}), 200
-        else:
-            return jsonify({"error": "Falha ao atualizar ocorrência."}), 500
+            return jsonify({"message": "Atendimento e data salvos com sucesso!"}), 200
+        # ...
     except Exception as e:
-        logging.exception("Erro salvar_atendimento")
+        # ...
         return jsonify({"error": str(e)}), 500
-
 @app.route('/api/ocorrencias_por_aluno/<int:aluno_id>')
 def ocorrencias_por_aluno(aluno_id):
     try:
@@ -2067,4 +2082,5 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
