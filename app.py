@@ -897,48 +897,49 @@ def api_salvar_agenda():
 @app.route('/api/salvar_frequencia', methods=['POST'])
 def api_salvar_frequencia_massa():
     """Salva a frequência P/F em massa, utilizando UPSERT para evitar duplicatas."""
-    data_list = request.json
-    if not data_list or not isinstance(data_list, list):
-        return jsonify({"error": "Dados inválidos: Esperado uma lista de registros."}, 400)
+    try:
+        data_list = request.get_json()
+        if not data_list or not isinstance(data_list, list):
+            return jsonify({"error": "Dados inválidos: Esperado uma lista de registros."}), 400
         
-    registros_a_salvar = []
-    
-    for item in data_list:
-        try:
-            aluno_id_bigint = int(item['aluno_id'])
-            sala_id_bigint = int(item['sala_id'])
-            data = item['data']
-            status = item['status']
-            
-            # Garante que só P e F podem ser inseridos aqui, para não sobrescrever PA/PS/PAS
-            if status not in ['P', 'F']:
-                logging.warning(f"Status inválido {status} na frequência em massa. Ignorando.")
+        registros_a_salvar = []
+        for item in data_list:
+            try:
+                aluno_id = int(item['aluno_id'])
+                sala_id = int(item['sala_id'])
+                data = item['data']
+                status = item['status']
+
+                if status not in ['P', 'F']:
+                    logging.warning(f"Status inválido {status} ignorado.")
+                    continue
+
+                registros_a_salvar.append({
+                    "aluno_id": aluno_id,
+                    "sala_id": sala_id,
+                    "data": data,
+                    "status": status
+                })
+            except (ValueError, KeyError, TypeError) as e:
+                logging.warning(f"Registro inválido ignorado: {item} ({e})")
                 continue
 
-            registro = {
-                "aluno_id": aluno_id_bigint,
-                "sala_id": sala_id_bigint,
-                "data": data,
-                "status": status,
-                # Chaves de conflito para UPSERT:
-                "data": data, 
-                "aluno_id": aluno_id_bigint
-            }
-            registros_a_salvar.append(registro)
-        except (ValueError, KeyError, TypeError):
-            continue
-            
-    if not registros_a_salvar:
-        return jsonify({"error": "Nenhum registro válido foi encontrado para salvar."}, 400)
+        if not registros_a_salvar:
+            return jsonify({"error": "Nenhum registro válido foi encontrado para salvar."}), 400
+
+        # Usa UPSERT para atualizar se já existir (chave composta aluno_id + data)
+        response = supabase.table("f_frequencia") \
+            .upsert(registros_a_salvar, on_conflict=["aluno_id", "data"]) \
+            .execute()
         
-    try:
-        # Usa UPSERT (on_conflict na PK) para atualizar se já existir ou inserir se for novo.
-        response = supabase.table("f_frequencia").upsert(payload, on_conflict=["aluno_id", "data"]).execute()
         handle_supabase_response(response)
-        return jsonify({"message": f"{len(registros_a_salvar)} registros de frequência salvos/atualizados com sucesso!", "status": 201}), 201
+        return jsonify({
+            "message": f"{len(registros_a_salvar)} registros de frequência salvos/atualizados com sucesso!"
+        }), 201
+
     except Exception as e:
-        logging.error(f"Erro no Supabase ao salvar frequência em massa: {e}")
-        return jsonify({"error": f"Erro interno do servidor: {e}", "status": 500}), 500
+        logging.exception("Erro no Supabase ao salvar frequência em massa")
+        return jsonify({"error": f"Erro interno do servidor: {str(e)}"}), 500
 
 @app.route('/api/salvar_atraso', methods=['POST'])
 def salvar_atraso():
@@ -2032,6 +2033,7 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
 
 
