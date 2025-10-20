@@ -31,6 +31,7 @@
       carregarSalas();
       carregarMeses();
       document.getElementById("btnVisualizar").addEventListener("click", visualizar);
+      document.getElementById("btnGerarPDF").addEventListener("click", gerarPDF);
     });
 
     async function carregarSalas() {
@@ -86,14 +87,12 @@
       const dias = [];
       const totalDias = new Date(ano, mes, 0).getDate();
 
-      // Monta todos os dias úteis do mês
       for (let d = 1; d <= totalDias; d++) {
         const data = dayjs(`${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
         const diaSemana = data.day();
         if (diaSemana !== 0 && diaSemana !== 6) dias.push(data);
       }
 
-      // Se não houver dados, cria estrutura vazia
       const alunos = Array.isArray(dados) && dados.length ? dados : [];
 
       let html = `
@@ -138,8 +137,46 @@
 
       container.innerHTML = html;
     }
+
+    async function gerarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4"
+      });
+
+      const salaSelect = document.getElementById("salaSelect");
+      const mesSelect = document.getElementById("mesSelect");
+      const salaNome = salaSelect.options[salaSelect.selectedIndex]?.text || "Sala não selecionada";
+      const mesNome = mesSelect.options[mesSelect.selectedIndex]?.text || "Mês não selecionado";
+      const ano = new Date().getFullYear();
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("RELATÓRIO DE FREQUÊNCIA", doc.internal.pageSize.getWidth() / 2, 40, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      doc.text(`Sala: ${salaNome} — Mês: ${mesNome} / ${ano}`, doc.internal.pageSize.getWidth() / 2, 60, { align: "center" });
+
+      await doc.html(document.getElementById("tabelaContainer"), {
+        x: 20,
+        y: 80,
+        html2canvas: {
+          scale: 0.6,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: document.getElementById("tabelaContainer").scrollWidth,
+        },
+        callback: function (pdf) {
+          pdf.save(`relatorio_frequencia_${salaNome}_${mesNome}_${ano}.pdf`);
+        },
+      });
+    }
   </script>
 </head>
+
 <body class="bg-dark-primary min-h-screen p-8 text-text-light">
   <div class="max-w-7xl mx-auto">
     <header class="text-center mb-8 mt-4">
@@ -150,13 +187,25 @@
         GESTÃO DE FREQUÊNCIA - RELATÓRIO MENSAL
       </h2>
 
-      <button onclick="window.location.href='/gestao_frequencia'"
-        class="mt-4 px-4 py-2 text-sm rounded-lg border border-gray-600 hover:bg-gray-700 flex items-center mx-auto">
-        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 6h16M4 12h16M4 18h7"/>
-        </svg> Voltar ao Menu
-      </button>
+      <div class="flex justify-center gap-4 mt-4">
+        <button onclick="window.location.href='gestao_frequencia'"
+          class="px-4 py-2 text-sm rounded-lg border border-gray-600 hover:bg-gray-700 flex items-center">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h7"/>
+          </svg>
+          Voltar ao Menu
+        </button>
+
+        <button id="btnGerarPDF"
+          class="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-green-600 text-white flex items-center">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 4v16m8-8H4"/>
+          </svg>
+          Gerar PDF
+        </button>
+      </div>
     </header>
 
     <main class="bg-dark-secondary rounded-xl shadow-2xl p-6">
