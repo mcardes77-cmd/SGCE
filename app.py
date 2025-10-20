@@ -1096,12 +1096,15 @@ def api_salvar_agenda():
 
 @app.route('/api/salvar_frequencia', methods=['POST'])
 def api_salvar_frequencia_massa():
-    """Salva a frequência P/F em massa, utilizando UPSERT para evitar duplicatas."""
+    """
+    Salva a frequência P/F em massa, utilizando UPSERT para evitar duplicatas.
+    Chave única considerada: aluno_id + data
+    """
     try:
         data_list = request.get_json()
         if not data_list or not isinstance(data_list, list):
             return jsonify({"error": "Dados inválidos: Esperado uma lista de registros."}), 400
-        
+
         registros_a_salvar = []
         for item in data_list:
             try:
@@ -1125,14 +1128,18 @@ def api_salvar_frequencia_massa():
                 continue
 
         if not registros_a_salvar:
-            return jsonify({"error": "Nenhum registro válido foi encontrado para salvar."}), 400
+            return jsonify({"error": "Nenhum registro válido encontrado para salvar."}), 400
 
-        # Usa UPSERT para atualizar se já existir (chave composta aluno_id + data)
+        # UPSERT com chave composta aluno_id + data
         response = supabase.table("f_frequencia") \
             .upsert(registros_a_salvar, on_conflict=["aluno_id", "data"]) \
             .execute()
-        
-        handle_supabase_response(response)
+
+        # Verifica se houve erro
+        if response.status_code not in [200, 201]:
+            logging.error(f"Erro Supabase: {response.data}")
+            return jsonify({"error": "Falha ao salvar frequência", "details": response.data}), 500
+
         return jsonify({
             "message": f"{len(registros_a_salvar)} registros de frequência salvos/atualizados com sucesso!"
         }), 201
@@ -2060,3 +2067,4 @@ def ocorrencias_por_aluno(aluno_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
