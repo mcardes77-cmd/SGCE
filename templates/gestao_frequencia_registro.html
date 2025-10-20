@@ -43,13 +43,13 @@
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen">
 
-  <!-- HEADER PADRONIZADO -->
+  <!-- HEADER -->
   <header class="text-center mb-8 mt-4">
-    <h1 class="text-2xl sm:text-3xl font-extrabold text-secondary-accent leading-tight tracking-wider">
+    <h1 class="text-2xl text-text-light mt-2 font-light border-b border-gray-700 pb-2 inline-block">
       SISTEMA DE GESTÃO DE CONVIVÊNCIA ESCOLAR
-    </h1>
-    <h2 class="text-lg sm:text-xl text-text-light mt-2 font-light border-b border-gray-700 pb-2 inline-block">
-      GESTÃO DE FREQUÊNCIA - REGISTRO DE FREQUÊNCIA
+    </h1><br>
+    <h2 class="text-lg text-text-light mt-2 font-light border-b border-gray-700 pb-2 inline-block">
+      GESTÃO DE FREQUÊNCIA - REGISTRO DE FREQUÊNCIA 
     </h2>
     <button onclick="window.location.href='/gestao_ocorrencia'"
       class="mt-4 px-4 py-2 text-sm font-medium rounded-lg text-gray-300 border border-gray-600 hover:bg-gray-700 transition duration-150 flex items-center mx-auto">
@@ -84,7 +84,7 @@
           <label for="input-data" class="block text-sm font-medium text-gray-300 mb-1">Data:</label>
           <input id="input-data" type="date" class="w-full p-3 bg-white text-black rounded-lg" required>
         </div>
-      </div>
+            </div>
 
       <div id="registro-status" class="pt-2 text-center text-lg"></div>
     </div>
@@ -126,7 +126,7 @@
     </div>
   </div>
 
-  <!-- FOOTER PADRONIZADO -->
+  <!-- FOOTER -->
   <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
     <p class="mb-1 text-base font-medium">
       DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES
@@ -156,7 +156,7 @@
         const selectSala = document.getElementById('select-sala');
         selectSala.innerHTML = '<option value="">Selecione a Sala</option>';
         salasData.forEach(sala => {
-          // CORREÇÃO APLICADA: Usa 'sala' para o nome da sala, com fallback
+          // Correção: Usa 'sala' para o nome da sala, com fallback
           selectSala.innerHTML += `<option value="${sala.id}">${sala.sala || sala.nome || 'N/A'}</option>`;
         });
       } catch {
