@@ -384,7 +384,218 @@ def api_get_tipos_ocorrencia():
 # VARIÁVEL APP PARA GUNICORN
 # ===============================================
 
+# =========================================================
+# ROTAS DE API PARA OCORRÊNCIAS (COMPLETAS)
+# =========================================================
+
+from datetime import datetime
+
+# 1. APIs para Formulário de Nova Ocorrência
+@app.route('/api/ocorrencias/salas', methods=['GET'])
+def api_get_salas_ocorrencias():
+    """Busca salas para o formulário de ocorrências"""
+    try:
+        response = supabase.table('d_salas').select('id, sala').order('sala').execute()
+        salas = handle_supabase_response(response)
+        return jsonify(salas), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/salas: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar salas: {str(e)}"}), 500
+
+@app.route('/api/ocorrencias/alunos', methods=['GET'])
+def api_get_alunos_ocorrencias():
+    """Busca todos os alunos para ocorrências"""
+    try:
+        response = supabase.table('d_alunos').select('id, nome, sala_id').order('nome').execute()
+        alunos = handle_supabase_response(response)
+        return jsonify(alunos), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/alunos: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar alunos: {str(e)}"}), 500
+
+@app.route('/api/ocorrencias/alunos_por_sala/<int:sala_id>', methods=['GET'])
+def api_get_alunos_por_sala_ocorrencias(sala_id):
+    """Busca alunos por sala específica"""
+    try:
+        response = supabase.table('d_alunos').select('id, nome, tutor_id').eq('sala_id', sala_id).order('nome').execute()
+        alunos = handle_supabase_response(response)
+        return jsonify(alunos), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/alunos_por_sala: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar alunos da sala: {str(e)}"}), 500
+
+@app.route('/api/ocorrencias/tutores', methods=['GET'])
+def api_get_tutores_ocorrencias():
+    """Busca tutores para ocorrências"""
+    try:
+        response = supabase.table('d_funcionarios').select('id, nome').eq('is_tutor', True).order('nome').execute()
+        tutores = handle_supabase_response(response)
+        return jsonify(tutores), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/tutores: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar tutores: {str(e)}"}), 500
+
+@app.route('/api/ocorrencias/professores', methods=['GET'])
+def api_get_professores_ocorrencias():
+    """Busca professores para ocorrências"""
+    try:
+        response = supabase.table('d_funcionarios').select('id, nome').order('nome').execute()
+        professores = handle_supabase_response(response)
+        return jsonify(professores), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/professores: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar professores: {str(e)}"}), 500
+
+# 2. APIs para Listagem de Ocorrências
+@app.route('/api/ocorrencias', methods=['GET'])
+def api_get_ocorrencias():
+    """Busca todas as ocorrências"""
+    try:
+        response = supabase.table('ocorrencias').select('*').order('data_hora', desc=True).execute()
+        ocorrencias = handle_supabase_response(response)
+        return jsonify(ocorrencias), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar ocorrências: {str(e)}"}), 500
+
+@app.route('/api/ocorrencias/abertas', methods=['GET'])
+def api_get_ocorrencias_abertas():
+    """Busca ocorrências em aberto"""
+    try:
+        response = supabase.table('ocorrencias').select('*').in_('status', ['AGUARDANDO ATENDIMENTO', 'EM ANDAMENTO']).order('data_hora', desc=True).execute()
+        ocorrencias = handle_supabase_response(response)
+        return jsonify(ocorrencias), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/abertas: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar ocorrências abertas: {str(e)}"}), 500
+
+@app.route('/api/ocorrencias/finalizadas', methods=['GET'])
+def api_get_ocorrencias_finalizadas():
+    """Busca ocorrências finalizadas"""
+    try:
+        response = supabase.table('ocorrencias').select('*').eq('status', 'FINALIZADA').order('data_hora', desc=True).execute()
+        ocorrencias = handle_supabase_response(response)
+        return jsonify(ocorrencias), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias/finalizadas: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar ocorrências finalizadas: {str(e)}"}), 500
+
+# 3. API para Criar Nova Ocorrência
+@app.route('/api/ocorrencias', methods=['POST'])
+def api_criar_ocorrencia():
+    """Cria uma nova ocorrência"""
+    data = request.json
+    
+    required_fields = ['descricao', 'aluno_id', 'tipo']
+    missing = [field for field in required_fields if not data.get(field)]
+    if missing:
+        return jsonify({"error": f"Campos obrigatórios ausentes: {', '.join(missing)}"}), 400
+
+    try:
+        # Buscar próximo número de ocorrência
+        max_response = supabase.table('ocorrencias').select('numero').order('numero', desc=True).limit(1).execute()
+        max_numero = handle_supabase_response(max_response)
+        proximo_numero = max_numero[0]['numero'] + 1 if max_numero else 1
+        
+        ocorrencia_data = {
+            "numero": proximo_numero,
+            "descricao": data['descricao'],
+            "tipo": data['tipo'],
+            "aluno_id": data['aluno_id'],
+            "aluno_nome": data.get('aluno_nome'),
+            "tutor_id": data.get('tutor_id'),
+            "professor_id": data.get('professor_id'),
+            "sala_id": data.get('sala_id'),
+            "atendimento_professor": data.get('atendimento_professor'),
+            "solicitado_tutor": data.get('solicitado_tutor', 'NÃO'),
+            "solicitado_coordenacao": data.get('solicitado_coordenacao', 'NÃO'),
+            "solicitado_gestao": data.get('solicitado_gestao', 'NÃO'),
+            "status": "AGUARDANDO ATENDIMENTO",
+            "assinada": "NÃO",
+            "data_hora": datetime.now().isoformat()
+        }
+        
+        response = supabase.table('ocorrencias').insert(ocorrencia_data).execute()
+        result = handle_supabase_response(response)
+        
+        return jsonify({
+            "message": "Ocorrência criada com sucesso",
+            "numero": proximo_numero
+        }), 201
+
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias POST: {str(e)}")
+        return jsonify({"error": f"Falha ao criar ocorrência: {str(e)}"}), 500
+
+# 4. API para Atualizar Ocorrência
+@app.route('/api/ocorrencias/<int:ocorrencia_numero>', methods=['PUT'])
+def api_atualizar_ocorrencia(ocorrencia_numero):
+    """Atualiza uma ocorrência existente"""
+    data = request.json
+    
+    try:
+        update_data = {}
+        campos_permitidos = [
+            'descricao', 'tipo', 'status', 'atendimento_professor', 
+            'atendimento_tutor', 'atendimento_coordenacao', 'atendimento_gestao',
+            'solicitado_tutor', 'solicitado_coordenacao', 'solicitado_gestao',
+            'dt_atendimento_tutor', 'dt_atendimento_coordenacao', 'dt_atendimento_gestao',
+            'assinada', 'impressao_pdf'
+        ]
+        
+        for campo in campos_permitidos:
+            if campo in data:
+                update_data[campo] = data[campo]
+        
+        if not update_data:
+            return jsonify({"error": "Nenhum campo válido para atualização"}), 400
+        
+        response = supabase.table('ocorrencias').update(update_data).eq('numero', ocorrencia_numero).execute()
+        handle_supabase_response(response)
+        
+        return jsonify({"message": "Ocorrência atualizada com sucesso"}), 200
+
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias PUT: {str(e)}")
+        return jsonify({"error": f"Falha ao atualizar ocorrência: {str(e)}"}), 500
+
+# 5. API para Buscar Ocorrência Específica
+@app.route('/api/ocorrencias/<int:ocorrencia_numero>', methods=['GET'])
+def api_get_ocorrencia(ocorrencia_numero):
+    """Busca uma ocorrência específica"""
+    try:
+        response = supabase.table('ocorrencias').select('*').eq('numero', ocorrencia_numero).single().execute()
+        ocorrencia = handle_supabase_response(response)
+        return jsonify(ocorrencia), 200
+    except Exception as e:
+        logging.error(f"Erro /api/ocorrencias GET: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar ocorrência: {str(e)}"}), 500
+
+# 6. APIs para Dados Auxiliares
+@app.route('/api/ocorrencias/tipos', methods=['GET'])
+def api_get_tipos_ocorrencia():
+    """Retorna os tipos de ocorrência"""
+    tipos = [
+        {"value": "COMPORTAMENTO", "label": "Comportamento"},
+        {"value": "DESEMPENHO", "label": "Desempenho Acadêmico"},
+        {"value": "FREQUENCIA", "label": "Frequência"},
+        {"value": "CONVIVENCIA", "label": "Convivência"},
+        {"value": "OUTROS", "label": "Outros"}
+    ]
+    return jsonify(tipos), 200
+
+@app.route('/api/ocorrencias/status', methods=['GET'])
+def api_get_status_ocorrencia():
+    """Retorna os status disponíveis"""
+    status = [
+        {"value": "AGUARDANDO ATENDIMENTO", "label": "Aguardando Atendimento"},
+        {"value": "EM ANDAMENTO", "label": "Em Andamento"},
+        {"value": "FINALIZADA", "label": "Finalizada"}
+    ]
+    return jsonify(status), 200
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
