@@ -230,6 +230,94 @@ except ImportError as e:
     logging.warning(f"Blueprint de vínculos não encontrado: {e}")
 
 # ===============================================
+# ROTAS DE API BÁSICAS (TEMPORÁRIAS)
+# ===============================================
+
+@app.route('/api/funcionarios', methods=['GET'])
+def api_get_funcionarios():
+    """Busca todos os funcionários"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_funcionarios').select('*').order('nome').execute()
+        funcionarios = handle_supabase_response(response)
+        return jsonify(funcionarios), 200
+    except Exception as e:
+        logging.error(f"Erro /api/funcionarios: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar funcionários: {str(e)}"}), 500
+
+@app.route('/api/salas', methods=['GET'])
+def api_get_salas():
+    """Busca todas as salas"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_salas').select('*').order('sala').execute()
+        salas = handle_supabase_response(response)
+        return jsonify(salas), 200
+    except Exception as e:
+        logging.error(f"Erro /api/salas: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar salas: {str(e)}"}), 500
+
+@app.route('/api/disciplinas', methods=['GET'])
+def api_get_disciplinas():
+    """Busca todas as disciplinas"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_disciplinas').select('*').order('nome').execute()
+        disciplinas = handle_supabase_response(response)
+        return jsonify(disciplinas), 200
+    except Exception as e:
+        logging.error(f"Erro /api/disciplinas: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar disciplinas: {str(e)}"}), 500
+
+@app.route('/api/alunos', methods=['GET'])
+def api_get_alunos():
+    """Busca todos os alunos"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_alunos').select('*').order('nome').execute()
+        alunos = handle_supabase_response(response)
+        return jsonify(alunos), 200
+    except Exception as e:
+        logging.error(f"Erro /api/alunos: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar alunos: {str(e)}"}), 500
+
+@app.route('/api/alunos/<int:aluno_id>', methods=['GET'])
+def api_get_aluno(aluno_id):
+    """Busca um aluno específico"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_alunos').select('*').eq('id', aluno_id).single().execute()
+        aluno = handle_supabase_response(response)
+        return jsonify(aluno), 200
+    except Exception as e:
+        logging.error(f"Erro /api/alunos/<id>: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar aluno: {str(e)}"}), 500
+
+@app.route('/api/tutores', methods=['GET'])
+def api_get_tutores():
+    """Busca apenas os funcionários que são tutores"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_funcionarios').select('*').eq('is_tutor', True).order('nome').execute()
+        tutores = handle_supabase_response(response)
+        return jsonify(tutores), 200
+    except Exception as e:
+        logging.error(f"Erro /api/tutores: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar tutores: {str(e)}"}), 500
+
+@app.route('/api/alunos_por_sala/<int:sala_id>', methods=['GET'])
+def api_get_alunos_por_sala(sala_id):
+    """Busca alunos por sala"""
+    try:
+        from db_utils import supabase, handle_supabase_response
+        response = supabase.table('d_alunos').select('*').eq('sala_id', sala_id).order('nome').execute()
+        alunos = handle_supabase_response(response)
+        return jsonify(alunos), 200
+    except Exception as e:
+        logging.error(f"Erro /api/alunos_por_sala: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar alunos da sala: {str(e)}"}), 500
+
+# ===============================================
 # VARIÁVEL APP PARA GUNICORN
 # ===============================================
 
@@ -239,3 +327,4 @@ except ImportError as e:
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
