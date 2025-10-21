@@ -1,14 +1,8 @@
 # app.py
-from flask import Flask, render_template, Blueprint
+from flask import Flask, render_template, Blueprint, jsonify
 import os
 import logging
-
-# --- Importa Blueprints de API ---
-from routes_frequencia import frequencia_bp
-from routes_tutoria import tutoria_bp
-from routes_cadastro import cadastro_bp
-from routes_aulas import aulas_bp
-from routes_ocorrencias import ocorrencias_bp
+from db_utils import supabase, handle_supabase_response
 
 # Configuração
 app = Flask(__name__)
@@ -208,13 +202,36 @@ def gestao_aulas_menu():
 # ===============================================
 
 app.register_blueprint(main_bp, url_prefix='/')
-app.register_blueprint(frequencia_bp, url_prefix='/api')
-app.register_blueprint(tutoria_bp, url_prefix='/api') 
-app.register_blueprint(cadastro_bp, url_prefix='/api')
-app.register_blueprint(aulas_bp, url_prefix='/api')
-app.register_blueprint(ocorrencias_bp, url_prefix='/api')
 
-# Registrar blueprints opcionais apenas se existirem
+# Registrar blueprints que funcionam
+try:
+    from routes_frequencia import frequencia_bp
+    app.register_blueprint(frequencia_bp, url_prefix='/api')
+    logging.info("Blueprint de frequência registrado com sucesso")
+except ImportError as e:
+    logging.warning(f"Blueprint de frequência não encontrado: {e}")
+
+try:
+    from routes_tutoria import tutoria_bp
+    app.register_blueprint(tutoria_bp, url_prefix='/api')
+    logging.info("Blueprint de tutoria registrado com sucesso")
+except ImportError as e:
+    logging.warning(f"Blueprint de tutoria não encontrado: {e}")
+
+try:
+    from routes_aulas import aulas_bp
+    app.register_blueprint(aulas_bp, url_prefix='/api')
+    logging.info("Blueprint de aulas registrado com sucesso")
+except ImportError as e:
+    logging.warning(f"Blueprint de aulas não encontrado: {e}")
+
+try:
+    from routes_ocorrencias import ocorrencias_bp
+    app.register_blueprint(ocorrencias_bp, url_prefix='/api')
+    logging.info("Blueprint de ocorrências registrado com sucesso")
+except ImportError as e:
+    logging.warning(f"Blueprint de ocorrências não encontrado: {e}")
+
 try:
     from routes_tecnologia import tecnologia_bp
     app.register_blueprint(tecnologia_bp, url_prefix='/api')
@@ -222,22 +239,18 @@ try:
 except ImportError as e:
     logging.warning(f"Blueprint de tecnologia não encontrado: {e}")
 
-try:
-    from routes_vinculos_disciplinas import vinculos_bp
-    app.register_blueprint(vinculos_bp, url_prefix='/api')
-    logging.info("Blueprint de vínculos registrado com sucesso")
-except ImportError as e:
-    logging.warning(f"Blueprint de vínculos não encontrado: {e}")
+# NÃO registrar blueprint problemático de cadastro
+# from routes_cadastro import cadastro_bp
+# app.register_blueprint(cadastro_bp, url_prefix='/api')
 
 # ===============================================
-# ROTAS DE API BÁSICAS (TEMPORÁRIAS)
+# ROTAS DE API DIRETAS (SUBSTITUEM O BLUEPRINT PROBLEMÁTICO)
 # ===============================================
 
 @app.route('/api/funcionarios', methods=['GET'])
 def api_get_funcionarios():
     """Busca todos os funcionários"""
     try:
-        from db_utils import supabase, handle_supabase_response
         response = supabase.table('d_funcionarios').select('*').order('nome').execute()
         funcionarios = handle_supabase_response(response)
         return jsonify(funcionarios), 200
@@ -249,7 +262,6 @@ def api_get_funcionarios():
 def api_get_salas():
     """Busca todas as salas"""
     try:
-        from db_utils import supabase, handle_supabase_response
         response = supabase.table('d_salas').select('*').order('sala').execute()
         salas = handle_supabase_response(response)
         return jsonify(salas), 200
@@ -261,7 +273,6 @@ def api_get_salas():
 def api_get_disciplinas():
     """Busca todas as disciplinas"""
     try:
-        from db_utils import supabase, handle_supabase_response
         response = supabase.table('d_disciplinas').select('*').order('nome').execute()
         disciplinas = handle_supabase_response(response)
         return jsonify(disciplinas), 200
@@ -273,7 +284,6 @@ def api_get_disciplinas():
 def api_get_alunos():
     """Busca todos os alunos"""
     try:
-        from db_utils import supabase, handle_supabase_response
         response = supabase.table('d_alunos').select('*').order('nome').execute()
         alunos = handle_supabase_response(response)
         return jsonify(alunos), 200
@@ -281,23 +291,10 @@ def api_get_alunos():
         logging.error(f"Erro /api/alunos: {str(e)}")
         return jsonify({"error": f"Falha ao buscar alunos: {str(e)}"}), 500
 
-@app.route('/api/alunos/<int:aluno_id>', methods=['GET'])
-def api_get_aluno(aluno_id):
-    """Busca um aluno específico"""
-    try:
-        from db_utils import supabase, handle_supabase_response
-        response = supabase.table('d_alunos').select('*').eq('id', aluno_id).single().execute()
-        aluno = handle_supabase_response(response)
-        return jsonify(aluno), 200
-    except Exception as e:
-        logging.error(f"Erro /api/alunos/<id>: {str(e)}")
-        return jsonify({"error": f"Falha ao buscar aluno: {str(e)}"}), 500
-
 @app.route('/api/tutores', methods=['GET'])
 def api_get_tutores():
     """Busca apenas os funcionários que são tutores"""
     try:
-        from db_utils import supabase, handle_supabase_response
         response = supabase.table('d_funcionarios').select('*').eq('is_tutor', True).order('nome').execute()
         tutores = handle_supabase_response(response)
         return jsonify(tutores), 200
@@ -309,7 +306,6 @@ def api_get_tutores():
 def api_get_alunos_por_sala(sala_id):
     """Busca alunos por sala"""
     try:
-        from db_utils import supabase, handle_supabase_response
         response = supabase.table('d_alunos').select('*').eq('sala_id', sala_id).order('nome').execute()
         alunos = handle_supabase_response(response)
         return jsonify(alunos), 200
@@ -321,10 +317,6 @@ def api_get_alunos_por_sala(sala_id):
 # VARIÁVEL APP PARA GUNICORN
 # ===============================================
 
-# Esta variável 'app' é necessária para o Gunicorn
-# O Gunicorn procura por 'app' quando executamos 'gunicorn --bind 0.0.0.0:$PORT "app:app"'
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
-
