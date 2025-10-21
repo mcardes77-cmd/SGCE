@@ -1,17 +1,44 @@
+# routes_frequencia.py - CORRIGIDO
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from calendar import monthrange
 import logging
 from db_utils import get_supabase, handle_supabase_response
 
-# Define o Blueprint para as rotas de Frequência
 frequencia_bp = Blueprint('frequencia', __name__)
 
 # =========================================================
-# ROTAS DE REGISTRO DIÁRIO DE FREQUÊNCIA
+# ROTAS AUXILIARES (PARA CARREGAMENTO DE DADOS)
 # =========================================================
 
-# ROTA: /api/frequencia/status (Verifica se a frequência já foi registrada para a sala/data)
+@frequencia_bp.route('/api/frequencia/salas', methods=['GET'])
+def api_get_salas_frequencia():
+    """Busca salas para o módulo de frequência"""
+    try:
+        supabase = get_supabase()
+        response = supabase.table('d_salas').select('id, sala').order('sala').execute()
+        salas = handle_supabase_response(response)
+        return jsonify(salas), 200
+    except Exception as e:
+        logging.error(f"Erro /api/frequencia/salas: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar salas: {str(e)}"}), 500
+
+@frequencia_bp.route('/api/frequencia/alunos_por_sala/<int:sala_id>', methods=['GET'])
+def api_get_alunos_por_sala_frequencia(sala_id):
+    """Busca alunos por sala para frequência"""
+    try:
+        supabase = get_supabase()
+        response = supabase.table('d_alunos').select('id, nome, matricula').eq('sala_id', sala_id).order('nome').execute()
+        alunos = handle_supabase_response(response)
+        return jsonify(alunos), 200
+    except Exception as e:
+        logging.error(f"Erro /api/frequencia/alunos_por_sala: {str(e)}")
+        return jsonify({"error": f"Falha ao buscar alunos: {str(e)}"}), 500
+
+# =========================================================
+# ROTAS DE REGISTRO DIÁRIO DE FREQUÊNCIA (CORRIGIDAS)
+# =========================================================
+
 @frequencia_bp.route('/api/frequencia/status', methods=['GET'])
 def api_frequencia_status():
     sala_id = request.args.get('sala_id')
@@ -22,285 +49,249 @@ def api_frequencia_status():
 
     try:
         supabase = get_supabase()
-        if not supabase:
-            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
-
-        # Busca qualquer registro de frequência para a combinação sala/data
-        resp = supabase.table('t_frequencia').select("id").eq('sala_id', int(sala_id)).eq('data', data).limit(1).execute()
         
-        registrada = len(resp.data) > 0
+        # Verifica se já existe registro para esta sala/data
+        response = supabase.table('t_frequencia').select("id").eq('sala_id', sala_id).eq('data', data).execute()
         
-        return jsonify({"registrada": registrada}), 200
+        registrada = len(response.data) > 0 if response.data else False
+        
+        return jsonify({
+            "registrada": registrada,
+            "count": len(response.data) if response.data else 0
+        }), 200
 
     except Exception as e:
-        logging.exception("Erro /api/frequencia/status")
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Erro /api/frequencia/status: {str(e)}")
+        return jsonify({"error": f"Falha ao verificar status: {str(e)}"}), 500
 
-# ROTA: /api/salvar_frequencia (Salva o registro diário de Presença/Falta (P/F))
 @frequencia_bp.route('/api/salvar_frequencia', methods=['POST'])
 def api_salvar_frequencia():
-    registros = request.json
-    
-    if not isinstance(registros, list) or not registros:
-        return jsonify({"error": "O corpo da requisição deve ser uma lista não vazia de registros."}), 400
-        
+    """Salva registro diário de frequência - CORRIGIDO"""
     try:
+        data = request.get_json()
+        if not data or not isinstance(data, list):
+            return jsonify({"error": "Dados inválidos. Esperado uma lista de registros."}), 400
+
         supabase = get_supabase()
-        if not supabase:
-            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
-
-        # Assume que todos os registros são para a mesma sala e data (baseado no frontend)
-        primeiro_registro = registros[0]
-        sala_id = primeiro_registro.get('sala_id')
-        data = primeiro_registro.get('data')
-
-        if not sala_id or not data:
-             return jsonify({"error": "Dados de sala e data obrigatórios ausentes nos registros."}), 400
-
-        # Verifica se já foi registrada (evita duplicidade)
-        resp_status = supabase.table('t_frequencia').select("id").eq('sala_id', int(sala_id)).eq('data', data).limit(1).execute()
-        if len(resp_status.data) > 0:
-             return jsonify({"error": "Frequência para esta sala e data já foi registrada."}), 409
-
-        # Prepara os dados para inserção
-        dados_a_inserir = []
-        for reg in registros:
-            # Garante que apenas status P ou F sejam inseridos via esta rota
-            if reg.get('status') in ['P', 'F']:
-                 dados_a_inserir.append({
-                    "aluno_id": int(reg.get('aluno_id')),
-                    "sala_id": int(reg.get('sala_id')),
-                    "data": reg.get('data'),
-                    "status": reg.get('status'),
-                    "timestamp_registro": datetime.now().isoformat()
-                })
-            
-        if not dados_a_inserir:
-            return jsonify({"error": "Nenhum registro de Presença/Falta (P/F) válido para salvar."}), 400
-
-        response = supabase.table('t_frequencia').insert(dados_a_inserir).execute()
-        handle_supabase_response(response)
         
-        return jsonify({"message": f"Frequência de {len(dados_a_inserir)} alunos registrada com sucesso.", "status": 201}), 201
+        # Verifica se já existe registro para evitar duplicação
+        primeiro_registro = data[0]
+        sala_id = primeiro_registro.get('sala_id')
+        data_registro = primeiro_registro.get('data')
+        
+        if not sala_id or not data_registro:
+            return jsonify({"error": "Dados de sala e data são obrigatórios."}), 400
+
+        # Remove registros existentes para esta sala/data
+        delete_response = supabase.table('t_frequencia').delete().eq('sala_id', sala_id).eq('data', data_registro).execute()
+        
+        # Prepara novos registros
+        registros = []
+        for registro in data:
+            registros.append({
+                "aluno_id": registro.get('aluno_id'),
+                "sala_id": registro.get('sala_id'),
+                "data": registro.get('data'),
+                "status": registro.get('status', 'F'),  # Default para falta
+                "timestamp_registro": datetime.now().isoformat()
+            })
+        
+        # Insere novos registros
+        insert_response = supabase.table('t_frequencia').insert(registros).execute()
+        
+        if insert_response.data:
+            return jsonify({
+                "message": f"Frequência de {len(registros)} alunos registrada com sucesso!",
+                "registros": len(insert_response.data)
+            }), 201
+        else:
+            return jsonify({"error": "Falha ao salvar registros"}), 500
 
     except Exception as e:
-        logging.exception("Erro /api/salvar_frequencia")
-        return jsonify({"error": f"Falha ao salvar a frequência: {e}"}), 500
+        logging.error(f"Erro /api/salvar_frequencia: {str(e)}")
+        return jsonify({"error": f"Falha ao salvar frequência: {str(e)}"}), 500
 
 # =========================================================
-# ROTAS DE REGISTRO DE EVENTOS (ATRASO/SAÍDA)
+# ROTAS DE EVENTOS (ATRASO/SAÍDA) - CORRIGIDAS
 # =========================================================
 
-# ROTA: /api/salvar_atraso (Salva o registro de entrada com Atraso - PA/PSA)
 @frequencia_bp.route('/api/salvar_atraso', methods=['POST'])
 def api_salvar_atraso():
-    data = request.json
-    
-    aluno_id = data.get('aluno_id')
-    sala_id = data.get('sala_id')
-    data_dia = data.get('data')
-    hora_atraso = data.get('hora_atraso')
-    
-    if not all([aluno_id, sala_id, data_dia, hora_atraso]):
-        return jsonify({"error": "Dados obrigatórios de aluno, sala, data e hora de atraso ausentes."}), 400
-
+    """Registra atraso do aluno - CORRIGIDO"""
     try:
+        data = request.get_json()
+        
+        required_fields = ['aluno_id', 'sala_id', 'data', 'hora_atraso']
+        missing = [field for field in required_fields if not data.get(field)]
+        if missing:
+            return jsonify({"error": f"Campos obrigatórios ausentes: {', '.join(missing)}"}), 400
+
         supabase = get_supabase()
-        if not supabase:
-            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
-
-        aluno_id = int(aluno_id)
-        sala_id = int(sala_id)
         
-        # 1. ATUALIZA/CRIA REGISTRO NA t_frequencia (PA)
-        resp_freq = supabase.table('t_frequencia').select("status").eq('aluno_id', aluno_id).eq('data', data_dia).limit(1).execute()
+        # Verifica/atualiza registro principal de frequência
+        freq_response = supabase.table('t_frequencia').select('*').eq('aluno_id', data['aluno_id']).eq('data', data['data']).execute()
         
-        status_atual = resp_freq.data[0]['status'] if resp_freq.data else None
-        
-        novo_status = 'PA' 
-        if status_atual in ['PS', 'PSA']:
-            # Se já tinha saída antecipada (PS), o novo status será PSA
-            novo_status = 'PSA'
-
-        # Lógica de atualização ou inserção na t_frequencia
-        if status_atual:
-            # Atualiza o status
-            supabase.table('t_frequencia').update({'status': novo_status, 'timestamp_registro': datetime.now().isoformat()}).eq('aluno_id', aluno_id).eq('data', data_dia).execute()
-        else:
-            # Cria um novo registro
-            supabase.table('t_frequencia').insert({
-                "aluno_id": aluno_id,
-                "sala_id": sala_id,
-                "data": data_dia,
-                "status": novo_status,
+        if freq_response.data:
+            # Atualiza registro existente
+            update_data = {
+                "status": 'PA',  # Presença com Atraso
                 "timestamp_registro": datetime.now().isoformat()
-            }).execute()
+            }
+            supabase.table('t_frequencia').update(update_data).eq('aluno_id', data['aluno_id']).eq('data', data['data']).execute()
+        else:
+            # Cria novo registro
+            novo_registro = {
+                "aluno_id": data['aluno_id'],
+                "sala_id": data['sala_id'],
+                "data": data['data'],
+                "status": 'PA',
+                "timestamp_registro": datetime.now().isoformat()
+            }
+            supabase.table('t_frequencia').insert(novo_registro).execute()
 
-        # 2. INSERE/ATUALIZA REGISTRO NA t_atrasos_saidas (Detalhes)
-        registro_detalhe = {
-            "aluno_id": aluno_id,
-            "sala_id": sala_id,
-            "data": data_dia,
-            "hora_atraso": hora_atraso,
-            "motivo": data.get('motivo_atraso'),
-            "responsavel": data.get('responsavel_atraso'),
-            "telefone": data.get('telefone_atraso'),
-            "tipo_registro": 'ATRASO'
+        # Registra detalhes do atraso
+        registro_atraso = {
+            "aluno_id": data['aluno_id'],
+            "data": data['data'],
+            "hora_atraso": data['hora_atraso'],
+            "motivo": data.get('motivo_atraso', ''),
+            "responsavel": data.get('responsavel_atraso', ''),
+            "telefone": data.get('telefone_atraso', ''),
+            "tipo_registro": 'ATRASO',
+            "timestamp": datetime.now().isoformat()
         }
         
-        # Tenta buscar detalhe de atraso existente
-        resp_detalhe = supabase.table('t_atrasos_saidas').select("*").eq('aluno_id', aluno_id).eq('data', data_dia).eq('tipo_registro', 'ATRASO').limit(1).execute()
+        atraso_response = supabase.table('t_atrasos_saidas').insert(registro_atraso).execute()
         
-        if resp_detalhe.data:
-             # Se o detalhe já existe, atualiza (impede duplicação de detalhes)
-             supabase.table('t_atrasos_saidas').update(registro_detalhe).eq('id', resp_detalhe.data[0]['id']).execute()
-        else:
-             supabase.table('t_atrasos_saidas').insert(registro_detalhe).execute()
-
-        return jsonify({"message": f"Atraso registrado com sucesso. Status atualizado para {novo_status}.", "status": 200}), 200
+        return jsonify({
+            "message": "Atraso registrado com sucesso!",
+            "status": "PA"
+        }), 200
 
     except Exception as e:
-        logging.exception("Erro /api/salvar_atraso")
-        return jsonify({"error": f"Falha ao salvar atraso: {e}"}), 500
+        logging.error(f"Erro /api/salvar_atraso: {str(e)}")
+        return jsonify({"error": f"Falha ao registrar atraso: {str(e)}"}), 500
 
-# ROTA: /api/salvar_saida_antecipada (Salva o registro de Saída Antecipada - PS/PSA)
 @frequencia_bp.route('/api/salvar_saida_antecipada', methods=['POST'])
 def api_salvar_saida_antecipada():
-    data = request.json
-    
-    aluno_id = data.get('aluno_id')
-    sala_id = data.get('sala_id')
-    data_dia = data.get('data')
-    hora_saida = data.get('hora_saida')
-    
-    if not all([aluno_id, sala_id, data_dia, hora_saida]):
-        return jsonify({"error": "Dados obrigatórios de aluno, sala, data e hora de saída ausentes."}), 400
-
+    """Registra saída antecipada do aluno - CORRIGIDO"""
     try:
+        data = request.get_json()
+        
+        required_fields = ['aluno_id', 'sala_id', 'data', 'hora_saida']
+        missing = [field for field in required_fields if not data.get(field)]
+        if missing:
+            return jsonify({"error": f"Campos obrigatórios ausentes: {', '.join(missing)}"}), 400
+
         supabase = get_supabase()
-        if not supabase:
-            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
-
-        aluno_id = int(aluno_id)
-        sala_id = int(sala_id)
         
-        # 1. ATUALIZA/CRIA REGISTRO NA t_frequencia (PS)
-        resp_freq = supabase.table('t_frequencia').select("status").eq('aluno_id', aluno_id).eq('data', data_dia).limit(1).execute()
+        # Verifica/atualiza registro principal de frequência
+        freq_response = supabase.table('t_frequencia').select('*').eq('aluno_id', data['aluno_id']).eq('data', data['data']).execute()
         
-        status_atual = resp_freq.data[0]['status'] if resp_freq.data else None
+        status_final = 'PS'  # Presença com Saída Antecipada
         
-        novo_status = 'PS'
-        if status_atual in ['PA', 'PSA']:
-            # Se já tinha atraso (PA), o novo status será PSA
-            novo_status = 'PSA'
-
-        # Lógica de atualização ou inserção na t_frequencia
-        if status_atual:
-            # Atualiza o status
-            supabase.table('t_frequencia').update({'status': novo_status, 'timestamp_registro': datetime.now().isoformat()}).eq('aluno_id', aluno_id).eq('data', data_dia).execute()
-        else:
-            # Cria um novo registro
-            supabase.table('t_frequencia').insert({
-                "aluno_id": aluno_id,
-                "sala_id": sala_id,
-                "data": data_dia,
-                "status": novo_status,
+        if freq_response.data:
+            status_atual = freq_response.data[0].get('status', '')
+            if status_atual == 'PA':
+                status_final = 'PSA'  # Presença com Atraso e Saída
+            
+            update_data = {
+                "status": status_final,
                 "timestamp_registro": datetime.now().isoformat()
-            }).execute()
+            }
+            supabase.table('t_frequencia').update(update_data).eq('aluno_id', data['aluno_id']).eq('data', data['data']).execute()
+        else:
+            # Cria novo registro
+            novo_registro = {
+                "aluno_id": data['aluno_id'],
+                "sala_id": data['sala_id'],
+                "data": data['data'],
+                "status": status_final,
+                "timestamp_registro": datetime.now().isoformat()
+            }
+            supabase.table('t_frequencia').insert(novo_registro).execute()
 
-        # 2. INSERE/ATUALIZA REGISTRO NA t_atrasos_saidas (Detalhes)
-        registro_detalhe = {
-            "aluno_id": aluno_id,
-            "sala_id": sala_id,
-            "data": data_dia,
-            "hora_saida": hora_saida,
-            "motivo": data.get('motivo_saida'),
-            "responsavel": data.get('responsavel_saida'),
-            "telefone": data.get('telefone_saida'),
-            "tipo_registro": 'SAIDA'
+        # Registra detalhes da saída
+        registro_saida = {
+            "aluno_id": data['aluno_id'],
+            "data": data['data'],
+            "hora_saida": data['hora_saida'],
+            "motivo": data.get('motivo_saida', ''),
+            "responsavel": data.get('responsavel_saida', ''),
+            "telefone": data.get('telefone_saida', ''),
+            "tipo_registro": 'SAIDA',
+            "timestamp": datetime.now().isoformat()
         }
         
-        # Tenta buscar detalhe de saída existente
-        resp_detalhe = supabase.table('t_atrasos_saidas').select("*").eq('aluno_id', aluno_id).eq('data', data_dia).eq('tipo_registro', 'SAIDA').limit(1).execute()
+        saida_response = supabase.table('t_atrasos_saidas').insert(registro_saida).execute()
         
-        if resp_detalhe.data:
-             # Se o detalhe já existe, atualiza (impede duplicação de detalhes)
-             supabase.table('t_atrasos_saidas').update(registro_detalhe).eq('id', resp_detalhe.data[0]['id']).execute()
-        else:
-             supabase.table('t_atrasos_saidas').insert(registro_detalhe).execute()
-
-        return jsonify({"message": f"Saída antecipada registrada com sucesso. Status atualizado para {novo_status}.", "status": 200}), 200
+        return jsonify({
+            "message": "Saída antecipada registrada com sucesso!",
+            "status": status_final
+        }), 200
 
     except Exception as e:
-        logging.exception("Erro /api/salvar_saida_antecipada")
-        return jsonify({"error": f"Falha ao salvar saída antecipada: {e}"}), 500
-
+        logging.error(f"Erro /api/salvar_saida_antecipada: {str(e)}")
+        return jsonify({"error": f"Falha ao registrar saída: {str(e)}"}), 500
 
 # =========================================================
-# ROTA DE RELATÓRIO MENSAL
+# ROTAS DE RELATÓRIOS - CORRIGIDAS
 # =========================================================
 
-# ROTA: /api/frequencia?sala=<id>&mes=<mes> (Relatório mensal de frequência)
-@frequencia_bp.route('/api/frequencia', methods=['GET'])
+@frequencia_bp.route('/api/frequencia/relatorio', methods=['GET'])
 def api_relatorio_frequencia():
-    sala_id = request.args.get('sala')
-    mes = request.args.get('mes')
-
-    if not sala_id or not mes:
-        return jsonify({"error": "Parâmetros sala e mes são obrigatórios."}), 400
-
+    """Gera relatório mensal de frequência - CORRIGIDO"""
     try:
+        sala_id = request.args.get('sala')
+        mes = request.args.get('mes')
+        ano = request.args.get('ano', datetime.now().year)
+
+        if not sala_id or not mes:
+            return jsonify({"error": "Parâmetros sala e mes são obrigatórios."}), 400
+
         supabase = get_supabase()
-        if not supabase:
-            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+        
+        # Busca alunos da sala
+        alunos_response = supabase.table('d_alunos').select('id, nome, matricula').eq('sala_id', sala_id).order('nome').execute()
+        alunos = alunos_response.data if alunos_response.data else []
+        
+        if not alunos:
+            return jsonify([]), 200
 
-        sala_id = int(sala_id)
-        mes = int(mes)
-        ano_atual = datetime.now().year
+        aluno_ids = [aluno['id'] for aluno in alunos]
         
-        # 1. Busca todos os alunos da sala
-        resp_alunos = supabase.table('d_alunos').select("id, nome").eq('sala_id', sala_id).order('nome').execute()
-        alunos_sala = handle_supabase_response(resp_alunos)
+        # Calcula período do mês
+        mes_int = int(mes)
+        ano_int = int(ano)
+        _, num_dias = monthrange(ano_int, mes_int)
         
-        aluno_ids = [a['id'] for a in alunos_sala]
-        
-        if not aluno_ids:
-             return jsonify([]), 200
-             
-        # 2. Define o período de busca (apenas o mês selecionado)
-        # Calcula o número de dias no mês
-        _, num_dias = monthrange(ano_atual, mes)
-        
-        # Formato de data para a query do Supabase (YYYY-MM-DD)
-        data_inicio = f"{ano_atual}-{str(mes).zfill(2)}-01"
-        data_fim = f"{ano_atual}-{str(mes).zfill(2)}-{str(num_dias).zfill(2)}"
+        data_inicio = f"{ano_int}-{mes_int:02d}-01"
+        data_fim = f"{ano_int}-{mes_int:02d}-{num_dias:02d}"
 
-        # 3. Busca os registros de frequência para todos os alunos no mês
-        resp_freq = supabase.table('t_frequencia').select("aluno_id, data, status").in_('aluno_id', aluno_ids).gte('data', data_inicio).lte('data', data_fim).execute()
-        registros = handle_supabase_response(resp_freq)
+        # Busca registros de frequência
+        frequencia_response = supabase.table('t_frequencia').select('*').in_('aluno_id', aluno_ids).gte('data', data_inicio).lte('data', data_fim).execute()
+        registros = frequencia_response.data if frequencia_response.data else []
 
-        # 4. Processa e Agrupa os dados por aluno
+        # Organiza dados por aluno
         frequencia_por_aluno = {}
-        for reg in registros:
-            aluno_id = reg['aluno_id']
-            # Mapeia a data para o status (YYYY-MM-DD: Status)
+        for registro in registros:
+            aluno_id = registro['aluno_id']
             if aluno_id not in frequencia_por_aluno:
                 frequencia_por_aluno[aluno_id] = {}
-            frequencia_por_aluno[aluno_id][reg['data']] = reg['status']
-            
-        # 5. Formata a saída para o frontend (Lista de objetos {nome: ..., frequencia: {...}})
-        relatorio_final = []
-        for aluno in alunos_sala:
-            relatorio_final.append({
+            frequencia_por_aluno[aluno_id][registro['data']] = registro['status']
+
+        # Monta relatório final
+        relatorio = []
+        for aluno in alunos:
+            relatorio.append({
                 "id": aluno['id'],
                 "nome": aluno['nome'],
+                "matricula": aluno.get('matricula', ''),
                 "frequencia": frequencia_por_aluno.get(aluno['id'], {})
             })
 
-        return jsonify(relatorio_final), 200
+        return jsonify(relatorio), 200
 
-    except ValueError:
-        return jsonify({"error": "Os parâmetros sala_id e mes devem ser números inteiros."}), 400
     except Exception as e:
-        logging.exception("Erro /api/frequencia")
-        return jsonify({"error": f"Falha ao gerar relatório de frequência: {e}"}), 500
+        logging.error(f"Erro /api/frequencia/relatorio: {str(e)}")
+        return jsonify({"error": f"Falha ao gerar relatório: {str(e)}"}), 500
