@@ -1,9 +1,13 @@
 import os
 import logging
 import time
+import supabase
 from typing import Optional
-from supabase import create_client, Client as SupabaseClient
+from supabase import create_client, Client
 
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -63,3 +67,4 @@ def handle_supabase_response(response):
     except Exception:
         logger.exception("Erro ao tratar resposta Supabase.")
         raise
+
