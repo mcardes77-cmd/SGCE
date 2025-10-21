@@ -163,10 +163,6 @@ def gestao_aulas_plano():
 def gestao_aulas_guia():
     return render_template('gestao_aulas_guia.html')
 
-@main_bp.route('/gestao_validacao_documentos')
-def gestao_validacao_documentos():
-    return render_template('gestao_validacao_documentos.html')
-
 # ===============================================
 # ROTAS CORRIGIDAS (PARA O index.html)
 # ===============================================
@@ -225,4 +221,5 @@ app.register_blueprint(tecnologia_bp, url_prefix='/api')  # ADICIONAR ESTA LINHA
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
+
     app.run(host="0.0.0.0", port=port)
