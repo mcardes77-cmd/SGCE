@@ -9,7 +9,7 @@ from routes_tutoria import tutoria_bp
 from routes_cadastro import cadastro_bp
 from routes_aulas import aulas_bp
 # --- Importa configurações do Supabase ---
-from db_utils import SUPABASE_URL, SUPABASE_ANON 
+from db_utils import supabase, handle_supabase_response
 
 # Configuração
 app = Flask(__name__)
@@ -161,4 +161,5 @@ app.register_blueprint(aulas_bp, url_prefix='/api') # Rotas de API de Aulas
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))  # Cloud Run define PORT
+
     app.run(host="0.0.0.0", port=port)
