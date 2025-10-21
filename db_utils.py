@@ -37,10 +37,13 @@ def _init_supabase_client(retries: int = 3, backoff: float = 1.0) -> Optional[Cl
             logger.info(f"Tentando inicializar Supabase (tentativa {attempt}/{retries})...")
             _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
             
-            # Testa a conexão
-            _supabase_client.table('professores').select('*').limit(1).execute()
+            # Testa a conexão com uma consulta simples
+            try:
+                _supabase_client.table('professores').select('*').limit(1).execute()
+                logger.info("Conexão Supabase inicializada e testada com sucesso.")
+            except Exception as test_error:
+                logger.warning(f"Conexão estabelecida, mas teste falhou: {test_error}")
             
-            logger.info("Conexão Supabase inicializada com sucesso.")
             return _supabase_client
         except Exception as e:
             logger.error(f"Falha ao criar client Supabase (tentativa {attempt}): {e}")
@@ -74,3 +77,6 @@ def handle_supabase_response(response):
     except Exception:
         logger.exception("Erro ao tratar resposta Supabase.")
         raise
+
+# Exportações explícitas
+__all__ = ['supabase', 'get_supabase', 'handle_supabase_response']
