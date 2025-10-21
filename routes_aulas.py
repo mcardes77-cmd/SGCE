@@ -1,95 +1,99 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
-from db_utils import supabase, handle_supabase_response # Assumindo db_utils existe
+from db_utils import supabase, handle_supabase_response
 
-# Define o Blueprint para as rotas de Gestão de Aulas
 aulas_bp = Blueprint('aulas', __name__)
+DOCS_TABLE = 't_documentos_aulas'
 
-# Nome da tabela que armazenará os documentos submetidos
-DOCS_TABLE = 't_documentos_aulas' 
+# Tipos de documentos permitidos
+ALLOWED_DOC_TYPES = ['PLANO_AULA', 'AGENDA_SEMANAL', 'GUIA_APRENDIZAGEM']
 
 # =========================================================
-# 1. ROTA DE SUBMISSÃO (PROFESSOR)
+# 1. ROTAS DE SUBMISSÃO (PROFESSOR)
 # =========================================================
 
-# ROTA: /api/aulas/submeter_documento (POST)
 @aulas_bp.route('/api/aulas/submeter_documento', methods=['POST'])
 def api_submeter_documento():
     data = request.json
     
     required_fields = ['tipo', 'professor_id', 'disciplina', 'conteudo_principal', 'periodo_inicio']
-    
     missing = [field for field in required_fields if not data.get(field)]
     if missing:
         return jsonify({"error": f"Campos obrigatórios ausentes: {', '.join(missing)}"}), 400
+
+    if data['tipo'] not in ALLOWED_DOC_TYPES:
+        return jsonify({"error": f"Tipo de documento inválido. Permitidos: {ALLOWED_DOC_TYPES}"}), 400
 
     try:
         documento = {
             "tipo": data['tipo'],
             "professor_id": int(data['professor_id']),
-            "disciplina": data['disciplina'], # Abreviação da Disciplina
-            "sala_serie": data.get('sala_serie'), # ID da Sala
+            "disciplina": data['disciplina'],
+            "sala_serie": data.get('sala_serie'),
             "bimestre": data.get('bimestre'),
             "periodo_inicio": data['periodo_inicio'],
             "periodo_fim": data.get('periodo_fim'),
             "conteudo_principal": data['conteudo_principal'],
-            "conteudo_json": data.get('conteudo_json', {}), # Conteúdo detalhado (Plano/Guia)
+            "conteudo_json": data.get('conteudo_json', {}),
             "status": "PENDENTE",
             "data_submissao": datetime.now().isoformat()
         }
         
         response = supabase.table(DOCS_TABLE).insert(documento).execute()
-        handle_supabase_response(response)
+        result = handle_supabase_response(response)
         
-        return jsonify({"message": f"Documento '{data['conteudo_principal']}' submetido para validação.", "id": response.data[0]['id']}), 201
+        return jsonify({
+            "message": f"Documento '{data['conteudo_principal']}' submetido para validação.", 
+            "id": result[0]['id'] if result else None
+        }), 201
 
     except Exception as e:
         logging.exception("Erro /api/aulas/submeter_documento")
-        return jsonify({"error": f"Falha ao submeter documento: {e}"}), 500
+        return jsonify({"error": f"Falha ao submeter documento: {str(e)}"}), 500
 
 # =========================================================
 # 2. ROTAS DE VALIDAÇÃO (COORDENADOR)
 # =========================================================
 
-# ROTA: /api/aulas/documentos_pendentes (GET)
 @aulas_bp.route('/api/aulas/documentos_pendentes', methods=['GET'])
 def api_documentos_pendentes():
     try:
         # Busca documentos PENDENTES ou que precisam de CORREÇÃO
-        # Faz JOIN para obter os nomes do professor e disciplina
         resp = supabase.table(DOCS_TABLE).select(
-            'id, tipo, conteudo_principal, periodo_inicio, professor_id:d_professores_funcionarios(nome), disciplina:d_disciplinas(nome)'
-        ).in_('status', ['PENDENTE', 'CORRECAO']).order('data_submissao', desc=False).execute()
+            'id, tipo, conteudo_principal, periodo_inicio, periodo_fim, status, data_submissao, '
+            'professor_id:d_funcionarios(nome), disciplina:d_disciplinas(nome), sala_serie:d_salas(sala)'
+        ).in_('status', ['PENDENTE', 'CORRECAO']).order('data_submissao', desc=True).execute()
         
         documentos = handle_supabase_response(resp)
         
         # Formata o output para o frontend
-        documentos_formatados = [
-            {
+        documentos_formatados = []
+        for doc in documentos:
+            documentos_formatados.append({
                 'id': doc['id'],
                 'tipo': doc['tipo'],
                 'conteudo_principal': doc['conteudo_principal'],
                 'periodo_inicio': doc['periodo_inicio'],
-                # Extrai os nomes do JOIN
+                'periodo_fim': doc.get('periodo_fim'),
+                'status': doc['status'],
+                'data_submissao': doc['data_submissao'],
                 'professor_nome': doc.get('professor_id', {}).get('nome', 'N/A'),
-                'disciplina_nome': doc.get('disciplina', {}).get('nome', doc['disciplina']),
-            } for doc in documentos
-        ]
+                'disciplina_nome': doc.get('disciplina', {}).get('nome', doc.get('disciplina', 'N/A')),
+                'sala_nome': doc.get('sala_serie', {}).get('sala', 'N/A') if doc.get('sala_serie') else 'N/A'
+            })
         
         return jsonify(documentos_formatados), 200
         
     except Exception as e:
         logging.exception("Erro /api/aulas/documentos_pendentes")
-        return jsonify({"error": f"Falha ao buscar documentos pendentes: {e}"}), 500
+        return jsonify({"error": f"Falha ao buscar documentos pendentes: {str(e)}"}), 500
 
-# ROTA: /api/aulas/documento/<doc_id> (GET)
 @aulas_bp.route('/api/aulas/documento/<int:doc_id>', methods=['GET'])
 def api_get_documento_detalhe(doc_id):
     try:
-        # Busca todos os campos do documento, incluindo o JSON de conteúdo
         resp = supabase.table(DOCS_TABLE).select(
-            '*, professor_nome:d_professores_funcionarios(nome), disciplina_nome:d_disciplinas(nome)'
+            '*, professor_id:d_funcionarios(nome), disciplina:d_disciplinas(nome), sala_serie:d_salas(sala, nivel_ensino)'
         ).eq('id', doc_id).single().execute()
         
         documento = handle_supabase_response(resp)
@@ -97,17 +101,17 @@ def api_get_documento_detalhe(doc_id):
             return jsonify({"error": "Documento não encontrado."}), 404
             
         # Simplifica os nomes do JOIN
-        documento['professor_nome'] = documento.pop('professor_nome', {}).get('nome', 'N/A')
-        documento['disciplina_nome'] = documento.pop('disciplina_nome', {}).get('nome', documento['disciplina'])
+        documento['professor_nome'] = documento.get('professor_id', {}).get('nome', 'N/A')
+        documento['disciplina_nome'] = documento.get('disciplina', {}).get('nome', documento.get('disciplina', 'N/A'))
+        documento['sala_nome'] = documento.get('sala_serie', {}).get('sala', 'N/A')
+        documento['nivel_ensino'] = documento.get('sala_serie', {}).get('nivel_ensino', 'N/A')
         
         return jsonify(documento), 200
         
     except Exception as e:
         logging.exception("Erro /api/aulas/documento/<doc_id>")
-        return jsonify({"error": f"Falha ao buscar detalhe do documento: {e}"}), 500
+        return jsonify({"error": f"Falha ao buscar detalhe do documento: {str(e)}"}), 500
 
-
-# ROTA: /api/aulas/validar (POST)
 @aulas_bp.route('/api/aulas/validar', methods=['POST'])
 def api_validar_documento():
     data = request.json
@@ -125,7 +129,7 @@ def api_validar_documento():
         update_data = {
             "status": status,
             "motivo_correcao": motivo_correcao if status == 'CORRECAO' else None,
-            "data_validacao": datetime.now().isoformat()
+            "data_validacao": datetime.now().isoformat() if status == 'APROVADO' else None
         }
         
         response = supabase.table(DOCS_TABLE).update(update_data).eq('id', doc_id).execute()
@@ -136,4 +140,52 @@ def api_validar_documento():
 
     except Exception as e:
         logging.exception("Erro /api/aulas/validar")
-        return jsonify({"error": f"Falha ao validar documento: {e}"}), 500
+        return jsonify({"error": f"Falha ao validar documento: {str(e)}"}), 500
+
+# =========================================================
+# 3. ROTAS AUXILIARES
+# =========================================================
+
+@aulas_bp.route('/api/aulas/documentos_aprovados', methods=['GET'])
+def api_documentos_aprovados():
+    try:
+        resp = supabase.table(DOCS_TABLE).select(
+            'id, tipo, conteudo_principal, periodo_inicio, periodo_fim, data_validacao, '
+            'professor_id:d_funcionarios(nome), disciplina:d_disciplinas(nome), sala_serie:d_salas(sala)'
+        ).eq('status', 'APROVADO').order('data_validacao', desc=True).execute()
+        
+        documentos = handle_supabase_response(resp)
+        
+        documentos_formatados = []
+        for doc in documentos:
+            documentos_formatados.append({
+                'id': doc['id'],
+                'tipo': doc['tipo'],
+                'conteudo_principal': doc['conteudo_principal'],
+                'periodo_inicio': doc['periodo_inicio'],
+                'periodo_fim': doc.get('periodo_fim'),
+                'data_validacao': doc['data_validacao'],
+                'professor_nome': doc.get('professor_id', {}).get('nome', 'N/A'),
+                'disciplina_nome': doc.get('disciplina', {}).get('nome', doc.get('disciplina', 'N/A')),
+                'sala_nome': doc.get('sala_serie', {}).get('sala', 'N/A') if doc.get('sala_serie') else 'N/A'
+            })
+        
+        return jsonify(documentos_formatados), 200
+        
+    except Exception as e:
+        logging.exception("Erro /api/aulas/documentos_aprovados")
+        return jsonify({"error": f"Falha ao buscar documentos aprovados: {str(e)}"}), 500
+
+@aulas_bp.route('/api/aulas/meus_documentos/<int:professor_id>', methods=['GET'])
+def api_meus_documentos(professor_id):
+    try:
+        resp = supabase.table(DOCS_TABLE).select(
+            'id, tipo, conteudo_principal, periodo_inicio, status, data_submissao, data_validacao, motivo_correcao'
+        ).eq('professor_id', professor_id).order('data_submissao', desc=True).execute()
+        
+        documentos = handle_supabase_response(resp)
+        return jsonify(documentos), 200
+        
+    except Exception as e:
+        logging.exception("Erro /api/aulas/meus_documentos")
+        return jsonify({"error": f"Falha ao buscar documentos do professor: {str(e)}"}), 500

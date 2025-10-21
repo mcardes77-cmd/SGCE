@@ -3,30 +3,58 @@ from flask import Flask, render_template, Blueprint
 import os
 import logging
 
-# --- Importa Blueprints de API (Certifique-se de que estes arquivos existam) ---
+# --- Importa Blueprints de API ---
 from routes_frequencia import frequencia_bp
 from routes_tutoria import tutoria_bp
 from routes_cadastro import cadastro_bp
 from routes_aulas import aulas_bp
-# --- Importa configurações do Supabase ---
-from db_utils import supabase, handle_supabase_response
+from routes_ocorrencias import ocorrencias_bp
+from routes_tecnologia import tecnologia_bp 
+
 
 # Configuração
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key')
 logging.basicConfig(level=logging.INFO)
 
-# --- 1. Definição do Blueprint Principal (Rotas que Renderizam HTML) ---
+# --- 1. Definição do Blueprint Principal ---
 main_bp = Blueprint('main', __name__)
 
 # Rota principal (Menu Inicial)
 @main_bp.route('/')
 def home():
-    # O seu menu principal deve se chamar 'index.html' ou 'home.html'
-    return render_template('index.html') 
+    return render_template('index.html')
 
 # ===============================================
-# ROTAS DO MÓDULO DE FREQUÊNCIA
+# ROTAS DO MÓDULO DE OCORRÊNCIAS
+# ===============================================
+
+@main_bp.route('/gestao_ocorrencia')
+def gestao_ocorrencia():
+    return render_template('gestao_ocorrencia.html')
+
+@main_bp.route('/gestao_ocorrencia_nova')
+def gestao_ocorrencia_nova():
+    return render_template('gestao_ocorrencia_nova.html')
+
+@main_bp.route('/gestao_ocorrencia_abertas')
+def gestao_ocorrencia_abertas():
+    return render_template('gestao_ocorrencia_aberta.html')
+
+@main_bp.route('/gestao_ocorrencia_finalizadas')
+def gestao_ocorrencia_finalizadas():
+    return render_template('gestao_ocorrencia_finalizada.html')
+
+@main_bp.route('/gestao_ocorrencia_editar')
+def gestao_ocorrencia_editar():
+    return render_template('gestao_ocorrencia_editar.html')
+
+@main_bp.route('/gestao_relatorio_impressao')
+def gestao_relatorio_impressao():
+    return render_template('gestao_relatorio_impressao.html')
+
+# ===============================================
+# ROTAS EXISTENTES (MANTIDAS)
 # ===============================================
 
 @main_bp.route('/gestao_frequencia')
@@ -49,18 +77,19 @@ def gestao_frequencia_saida():
 def gestao_relatorio_frequencia():
     return render_template('gestao_relatorio_frequencia.html')
 
-# ===============================================
-# ROTAS DO MÓDULO DE TUTORIA
-# ===============================================
-
 @main_bp.route('/gestao_tutoria')
 def gestao_tutoria():
     return render_template('gestao_tutoria.html')
 
 @main_bp.route('/gestao_tutoria_ficha')
 def gestao_tutoria_ficha():
-    # Passa as chaves do Supabase para uso direto no JavaScript
-    return render_template('gestao_tutoria_ficha.html', supabase_url=SUPABASE_URL, supabase_anon=SUPABASE_ANON)
+    return render_template('gestao_tutoria_ficha.html')
+
+@main_bp.route('/gestao_validacao_documentos')
+def gestao_validacao_documentos():
+    return render_template('gestao_validacao_documentos.html')
+
+# ... resto do código mantido ...
 
 @main_bp.route('/gestao_tutoria_agendamento')
 def gestao_tutoria_agendamento():
@@ -68,7 +97,7 @@ def gestao_tutoria_agendamento():
 
 @main_bp.route('/gestao_tutoria_registro')
 def gestao_tutoria_registro():
-    return render_template('gestao_tutoria_agendamento.html') # Usando a mesma tela
+    return render_template('gestao_tutoria_registro.html')  # CORRIGIDO
 
 @main_bp.route('/gestao_tutoria_notas')
 def gestao_tutoria_notas():
@@ -77,10 +106,6 @@ def gestao_tutoria_notas():
 @main_bp.route('/gestao_relatorio_tutoria')
 def gestao_relatorio_tutoria():
     return render_template('gestao_relatorio_tutoria.html')
-
-# ===============================================
-# ROTAS DO MÓDULO DE CADASTRO
-# ===============================================
 
 @main_bp.route('/gestao_cadastro')
 def gestao_cadastro():
@@ -126,10 +151,6 @@ def gestao_cadastro_vinculacao_tutor_aluno():
 def gestao_cadastro_vinculacao_disciplina_sala():
     return render_template('gestao_cadastro_vinculacao_disciplina_sala.html')
 
-# ===============================================
-# ROTAS DO MÓDULO DE AULAS (PLANO/GUIA/VALIDAÇÃO)
-# ===============================================
-
 @main_bp.route('/gestao_aulas')
 def gestao_aulas():
     return render_template('gestao_aulas.html')
@@ -145,21 +166,63 @@ def gestao_aulas_guia():
 @main_bp.route('/gestao_validacao_documentos')
 def gestao_validacao_documentos():
     return render_template('gestao_validacao_documentos.html')
-    
+
 # ===============================================
-# 3. REGISTRO DOS BLUEPRINTS
+# ROTAS CORRIGIDAS (PARA O index.html)
 # ===============================================
 
-app.register_blueprint(main_bp, url_prefix='/') # Rotas de Front-end (HTML)
-app.register_blueprint(frequencia_bp, url_prefix='/api') # Rotas de API de Frequência
-app.register_blueprint(tutoria_bp, url_prefix='/api') # Rotas de API de Tutoria
-app.register_blueprint(cadastro_bp, url_prefix='/api') # Rotas de API de Cadastro
-app.register_blueprint(aulas_bp, url_prefix='/api') # Rotas de API de Aulas
+@main_bp.route('/gestao_tecnologia')
+def gestao_tecnologia():
+    """Rota temporária - crie o template depois"""
+    return render_template('gestao_tecnologia.html')
 
-# A variável 'app' é a instância do Flask. O Gunicorn irá usar 'app:app' 
-# para iniciar a aplicação (arquivo app.py e instância 'app').
+@main_bp.route('/gestao_aulas_menu')
+def gestao_aulas_menu():
+    """Rota corrigida para o botão 'GESTÃO DE AULAS'"""
+    return render_template('gestao_aulas.html')
+
+# ... imports existentes ...
+from routes_tecnologia import tecnologia_bp  # ADICIONAR ESTA LINHA
+
+# ... código existente ...
+
+# ===============================================
+# ROTAS DO MÓDULO DE TECNOLOGIA (ADICIONAR)
+# ===============================================
+
+@main_bp.route('/gestao_tecnologia')
+def gestao_tecnologia():
+    return render_template('gestao_tecnologia.html')
+
+@main_bp.route('/gestao_tecnologia_agendamento')
+def gestao_tecnologia_agendamento():
+    return render_template('gestao_tecnologia_agendamento.html')
+
+@main_bp.route('/gestao_tecnologia_historico')
+def gestao_tecnologia_historico():
+    return render_template('gestao_tecnologia_historico.html')
+
+@main_bp.route('/gestao_tecnologia_ocorrencia')
+def gestao_tecnologia_ocorrencia():
+    return render_template('gestao_tecnologia_ocorrencia.html')
+
+# ... resto do código existente ...
+
+# ===============================================
+# 3. REGISTRO DOS BLUEPRINTS (ATUALIZAR)
+# ===============================================
+
+app.register_blueprint(main_bp, url_prefix='/')
+app.register_blueprint(frequencia_bp, url_prefix='/api')
+app.register_blueprint(tutoria_bp, url_prefix='/api') 
+app.register_blueprint(cadastro_bp, url_prefix='/api')
+app.register_blueprint(aulas_bp, url_prefix='/api')
+app.register_blueprint(ocorrencias_bp, url_prefix='/api')
+app.register_blueprint(tecnologia_bp, url_prefix='/api')  # ADICIONAR ESTA LINHA
+
+# ... resto do código ...
+
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))  # Cloud Run define PORT
-
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)

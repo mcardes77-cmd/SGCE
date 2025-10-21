@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Validação de Documentos de Aulas</title>
+    <title>Validação de Documentos</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -17,144 +17,207 @@
                         'info': '#3B82F6',
                         'danger': '#DC2626',
                         'warning': '#F59E0B',
+                        'input-bg': '#374151',
                     },
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
                 }
             }
         }
-        
+
         let documentosPendentes = [];
         let documentoSelecionado = null;
 
-        document.addEventListener('DOMContentLoaded', loadDocumentosPendentes);
+        document.addEventListener('DOMContentLoaded', carregarDocumentosPendentes);
 
         function mostrarMensagem(texto, tipo) {
-             const msgElement = document.getElementById('mensagem-status');
-             msgElement.textContent = texto;
-             msgElement.className = `fixed top-4 right-4 p-3 rounded text-white font-bold z-50`;
-             
-             if (tipo === 'success') msgElement.classList.add('bg-accent');
-             else if (tipo === 'danger') msgElement.classList.add('bg-danger');
-             else msgElement.classList.add('bg-info');
-
-             msgElement.style.display = 'block';
-             setTimeout(() => (msgElement.style.display = 'none'), 5000);
-        }
-        
-        // =======================================================
-        // CARREGAR LISTA PENDENTE - ROTA GET /api/aulas/documentos_pendentes
-        // =======================================================
-        async function loadDocumentosPendentes() {
-            const listContainer = document.getElementById('documentos-pendentes-list');
-            listContainer.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Carregando documentos pendentes...</td></tr>';
+            const msgElement = document.getElementById('mensagem-status');
+            msgElement.textContent = texto;
+            msgElement.className = `p-3 rounded mt-4 text-white font-bold text-center w-full`;
             
-            document.getElementById('detalhes-documento').style.display = 'none';
+            if (tipo === 'success') msgElement.classList.add('bg-accent');
+            else if (tipo === 'danger') msgElement.classList.add('bg-danger');
+            else if (tipo === 'warning') msgElement.classList.add('bg-warning');
+            else msgElement.classList.add('bg-info');
 
+            msgElement.style.display = 'block';
+            setTimeout(() => (msgElement.style.display = 'none'), 5000);
+        }
+
+        async function carregarDocumentosPendentes() {
+            mostrarMensagem('Carregando documentos pendentes...', 'info');
             try {
                 const response = await fetch('/api/aulas/documentos_pendentes');
+                if (!response.ok) throw new Error('Erro ao carregar documentos');
+                
                 documentosPendentes = await response.json();
-                
-                listContainer.innerHTML = '';
-                
-                if (documentosPendentes.length === 0) {
-                     listContainer.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-accent font-bold">Nenhum documento pendente de validação.</td></tr>';
-                     return;
-                }
-
-                documentosPendentes.forEach(doc => {
-                    const tipoTexto = doc.tipo === 'PLANO_AULA' ? 'Plano de Aula' : doc.tipo === 'GUIA_APRENDIZAGEM' ? 'Guia Aprend.' : 'Agenda Semanal';
-                    const tipoClass = doc.tipo === 'PLANO_AULA' ? 'bg-info' : doc.tipo === 'GUIA_APRENDIZAGEM' ? 'bg-danger' : 'bg-warning';
-                    
-                    const row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50 cursor-pointer" onclick="viewDocumentDetails('${doc.id}')">
-                        <td class="p-3 text-center">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white ${tipoClass}">
-                                ${tipoTexto}
-                            </span>
-                        </td>
-                        <td class="p-3 font-semibold text-text-light">${doc.professor_nome}</td>
-                        <td class="p-3">${doc.disciplina_nome}</td>
-                        <td class="p-3 text-sm">${doc.conteudo_principal.substring(0, 50)}...</td>
-                        <td class="p-3 text-center">
-                            <button class="bg-warning hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded-md text-sm">
-                                Avaliar
-                            </button>
-                        </td>
-                    </tr>`;
-                    
-                    listContainer.insertAdjacentHTML('beforeend', row);
-                });
-
+                renderizarDocumentosPendentes();
+                mostrarMensagem(`${documentosPendentes.length} documento(s) pendente(s) encontrado(s).`, 'success');
             } catch (e) {
-                listContainer.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-danger">Erro ao carregar lista de documentos.</td></tr>';
+                console.error("Erro:", e);
+                mostrarMensagem('Erro ao carregar documentos pendentes.', 'danger');
             }
         }
-        
-        // =======================================================
-        // VISUALIZAR DETALHES - ROTA GET /api/aulas/documento/<doc_id>
-        // =======================================================
-        window.viewDocumentDetails = async function(docId) {
+
+        function renderizarDocumentosPendentes() {
+            const container = document.getElementById('lista-documentos');
+            container.innerHTML = '';
+
+            if (documentosPendentes.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-400">
+                        <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>Nenhum documento pendente para validação.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            documentosPendentes.forEach(doc => {
+                const statusColor = doc.status === 'PENDENTE' ? 'bg-yellow-500' : 'bg-orange-500';
+                const tipoTexto = {
+                    'PLANO_AULA': 'Plano de Aula',
+                    'AGENDA_SEMANAL': 'Agenda Semanal',
+                    'GUIA_APRENDIZAGEM': 'Guia de Aprendizagem'
+                }[doc.tipo] || doc.tipo;
+
+                const card = document.createElement('div');
+                card.className = 'bg-dark-secondary p-4 rounded-lg border border-gray-600 hover:border-info cursor-pointer transition-colors';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="font-bold text-lg text-white">${doc.conteudo_principal}</h3>
+                            <p class="text-sm text-gray-300">${tipoTexto} • ${doc.disciplina_nome}</p>
+                        </div>
+                        <span class="px-2 py-1 text-xs rounded-full ${statusColor} text-white">${doc.status}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm text-gray-400">
+                        <div><strong>Professor:</strong> ${doc.professor_nome}</div>
+                        <div><strong>Turma:</strong> ${doc.sala_nome}</div>
+                        <div><strong>Período:</strong> ${doc.periodo_inicio} ${doc.periodo_fim ? 'a ' + doc.periodo_fim : ''}</div>
+                        <div><strong>Submissão:</strong> ${new Date(doc.data_submissao).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                    <button onclick="selecionarDocumento(${doc.id}, event)" 
+                            class="mt-3 w-full bg-info hover:bg-blue-600 text-white py-2 px-4 rounded transition-colors">
+                        Ver Detalhes e Validar
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function selecionarDocumento(docId, event) {
+            event.stopPropagation();
             mostrarMensagem('Carregando detalhes do documento...', 'info');
             
             try {
                 const response = await fetch(`/api/aulas/documento/${docId}`);
+                if (!response.ok) throw new Error('Erro ao carregar documento');
+                
                 documentoSelecionado = await response.json();
-                
-                if (documentoSelecionado.error) {
-                    throw new Error(documentoSelecionado.error);
-                }
-                
-                document.getElementById('detalhes-documento').style.display = 'block';
-                
-                // Preenche os campos de visualização
-                document.getElementById('detail-tipo').textContent = documentoSelecionado.tipo.replace('_', ' ');
-                document.getElementById('detail-professor').textContent = documentoSelecionado.professor_nome;
-                document.getElementById('detail-disciplina').textContent = documentoSelecionado.disciplina_nome;
-                document.getElementById('detail-periodo').textContent = `${new Date(documentoSelecionado.periodo_inicio).toLocaleDateString()} a ${documentoSelecionado.periodo_fim ? new Date(documentoSelecionado.periodo_fim).toLocaleDateString() : 'N/A'}`;
-                document.getElementById('detail-tema').textContent = documentoSelecionado.conteudo_principal;
-
-                // Preenche os detalhes do JSON
-                const json = documentoSelecionado.conteudo_json;
-                document.getElementById('detail-habilidade').textContent = json.habilidade || 'Não Informado';
-                document.getElementById('detail-objetivo').textContent = json.objetivo || 'Não Informado';
-                document.getElementById('detail-desenvolvimento').textContent = json.desenvolvimento || 'Não Informado';
-                document.getElementById('detail-avaliacao').textContent = json.avaliacao || 'Não Informado';
-
-                // Limpa o campo de correção anterior
-                document.getElementById('input-motivo-correcao').value = documentoSelecionado.motivo_correcao || '';
-
-                mostrarMensagem('Documento pronto para avaliação.', 'success');
-                
+                mostrarModalDetalhes();
+                mostrarMensagem('Documento carregado com sucesso.', 'success');
             } catch (e) {
-                mostrarMensagem('Falha ao carregar detalhes: ' + e.message, 'danger');
-                document.getElementById('detalhes-documento').style.display = 'none';
+                console.error("Erro:", e);
+                mostrarMensagem('Erro ao carregar detalhes do documento.', 'danger');
             }
         }
 
-        // =======================================================
-        // AÇÕES DE VALIDAÇÃO - ROTA POST /api/aulas/validar
-        // =======================================================
-        window.validarDocumento = async function(acao) {
-            if (!documentoSelecionado) {
-                mostrarMensagem('Nenhum documento selecionado.', 'warning');
+        function mostrarModalDetalhes() {
+            const modal = document.getElementById('modal-detalhes');
+            const content = document.getElementById('modal-content');
+            
+            const tipoTexto = {
+                'PLANO_AULA': 'Plano de Aula',
+                'AGENDA_SEMANAL': 'Agenda Semanal',
+                'GUIA_APRENDIZAGEM': 'Guia de Aprendizagem'
+            }[documentoSelecionado.tipo] || documentoSelecionado.tipo;
+
+            content.innerHTML = `
+                <div class="bg-dark-secondary rounded-lg p-6 max-w-4xl mx-auto">
+                    <div class="flex justify-between items-start mb-4">
+                        <h2 class="text-2xl font-bold text-accent">${documentoSelecionado.conteudo_principal}</h2>
+                        <button onclick="fecharModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
+                        <div><strong>Tipo:</strong> ${tipoTexto}</div>
+                        <div><strong>Status:</strong> ${documentoSelecionado.status}</div>
+                        <div><strong>Professor:</strong> ${documentoSelecionado.professor_nome}</div>
+                        <div><strong>Disciplina:</strong> ${documentoSelecionado.disciplina_nome}</div>
+                        <div><strong>Turma:</strong> ${documentoSelecionado.sala_nome}</div>
+                        <div><strong>Nível:</strong> ${documentoSelecionado.nivel_ensino}</div>
+                        <div><strong>Bimestre:</strong> ${documentoSelecionado.bimestre || 'N/A'}</div>
+                        <div><strong>Período:</strong> ${documentoSelecionado.periodo_inicio} ${documentoSelecionado.periodo_fim ? 'a ' + documentoSelecionado.periodo_fim : ''}</div>
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-info mb-2">Conteúdo Detalhado</h3>
+                        <div class="bg-gray-800 p-4 rounded max-h-60 overflow-y-auto">
+                            <pre class="text-sm text-gray-300 whitespace-pre-wrap">${JSON.stringify(documentoSelecionado.conteudo_json, null, 2)}</pre>
+                        </div>
+                    </div>
+
+                    ${documentoSelecionado.motivo_correcao ? `
+                    <div class="mb-6 p-4 bg-yellow-900 rounded">
+                        <h3 class="text-lg font-bold text-yellow-300 mb-2">Motivo da Correção Anterior</h3>
+                        <p class="text-yellow-200">${documentoSelecionado.motivo_correcao}</p>
+                    </div>
+                    ` : ''}
+
+                    <div class="flex gap-4 justify-end">
+                        <button onclick="validarDocumento('CORRECAO')" 
+                                class="bg-warning hover:bg-yellow-600 text-white py-2 px-6 rounded transition-colors">
+                            Solicitar Correções
+                        </button>
+                        <button onclick="validarDocumento('APROVADO')" 
+                                class="bg-accent hover:bg-emerald-600 text-white py-2 px-6 rounded transition-colors">
+                            Aprovar Documento
+                        </button>
+                    </div>
+
+                    <div id="form-correcao" class="mt-4 hidden">
+                        <textarea id="motivo-correcao" placeholder="Descreva as correções necessárias..." 
+                                  class="w-full h-32 p-3 bg-input-bg text-white rounded border border-gray-600"></textarea>
+                        <div class="flex gap-4 justify-end mt-2">
+                            <button onclick="document.getElementById('form-correcao').classList.add('hidden')" 
+                                    class="bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded">
+                                Cancelar
+                            </button>
+                            <button onclick="confirmarValidacao('CORRECAO')" 
+                                    class="bg-warning hover:bg-yellow-600 text-white py-2 px-6 rounded">
+                                Enviar Correções
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+
+        function fecharModal() {
+            document.getElementById('modal-detalhes').classList.add('hidden');
+        }
+
+        function validarDocumento(status) {
+            if (status === 'CORRECAO') {
+                document.getElementById('form-correcao').classList.remove('hidden');
+            } else {
+                confirmarValidacao(status);
+            }
+        }
+
+        async function confirmarValidacao(status) {
+            const motivoCorrecao = status === 'CORRECAO' ? document.getElementById('motivo-correcao').value.trim() : '';
+            
+            if (status === 'CORRECAO' && !motivoCorrecao) {
+                mostrarMensagem('Por favor, descreva o motivo das correções.', 'warning');
                 return;
             }
-            
-            const motivo = document.getElementById('input-motivo-correcao').value.trim();
-            let status = '';
-            
-            if (acao === 'APROVAR') {
-                status = 'APROVADO';
-                if (!confirm(`Confirmar a APROVAÇÃO do documento "${documentoSelecionado.conteudo_principal}"?`)) return;
-            } else if (acao === 'CORRECAO') {
-                status = 'CORRECAO';
-                if (!motivo) {
-                    mostrarMensagem('É obrigatório descrever o motivo da correção.', 'warning');
-                    return;
-                }
-                if (!confirm(`Confirmar a solicitação de CORREÇÃO para o documento "${documentoSelecionado.conteudo_principal}"?`)) return;
-            }
-            
-            mostrarMensagem(`Enviando ação de ${status}...`, 'info');
+
+            mostrarMensagem('Validando documento...', 'info');
 
             try {
                 const response = await fetch('/api/aulas/validar', {
@@ -163,7 +226,7 @@
                     body: JSON.stringify({
                         doc_id: documentoSelecionado.id,
                         status: status,
-                        motivo_correcao: motivo
+                        motivo_correcao: motivoCorrecao
                     })
                 });
 
@@ -171,138 +234,66 @@
 
                 if (response.ok) {
                     mostrarMensagem(data.message, 'success');
-                    // Limpa a visualização e recarrega a lista
-                    document.getElementById('detalhes-documento').style.display = 'none';
-                    loadDocumentosPendentes();
+                    fecharModal();
+                    carregarDocumentosPendentes();
                 } else {
-                    mostrarMensagem(`Erro na validação: ${data.error}`, 'danger');
+                    mostrarMensagem(`Erro: ${data.error}`, 'danger');
                 }
             } catch (e) {
-                mostrarMensagem("Erro de comunicação com o servidor.", 'danger');
+                console.error("Erro:", e);
+                mostrarMensagem('Erro de comunicação com o servidor.', 'danger');
             }
         }
-    </script>
-    <style>
-        .form-textarea {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            background-color: #374151; 
-            color: #f3f4f6;
-            border: 1px solid #4b5563;
-        }
-    </style>
-</head>
-<body class="bg-dark-primary font-sans text-text-light">
-    
-    <div id="app-container" class="flex flex-col items-center justify-start p-4 md:p-8 min-h-screen">
 
-        <header class="w-full text-center mb-8 mt-4">
+        // Fechar modal ao clicar fora
+        document.getElementById('modal-detalhes').addEventListener('click', function(e) {
+            if (e.target === this) {
+                fecharModal();
+            }
+        });
+    </script>
+</head>
+<body class="bg-dark-primary font-sans text-text-light min-h-screen">
+    
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
             <h1 class="text-3xl sm:text-4xl font-extrabold text-warning leading-tight tracking-wider">
-                MÓDULO DE VALIDAÇÃO
+                VALIDAÇÃO DE DOCUMENTOS
             </h1>
             <h2 class="text-xl sm:text-2xl text-text-light mt-2 font-light tracking-wider border-b border-gray-700 pb-2 inline-block">
-                DOCUMENTOS DE AULAS (COORDENAÇÃO)
+                PLANOS DE AULA E GUIAS DE APRENDIZAGEM
             </h2>
-             <div class="mt-4">
-                 <button type="button" onclick="window.location.href='{{ url_for('main.gestao_aulas') }}'"
+            <div class="mt-4">
+                <button type="button" onclick="window.location.href='{{ url_for('main.gestao_aulas') }}'"
                         class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out flex items-center justify-center space-x-2 mx-auto w-full max-w-xs">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path>
+                    </svg>
                     <span>VOLTAR AO MENU AULAS</span>
                 </button>
             </div>
         </header>
 
-        <div id="mensagem-status" style="display:none;"></div>
+        <div id="mensagem-status" style="display:none;" class="mb-6"></div>
 
-        <main class="w-full max-w-6xl flex-grow space-y-8">
-            
+        <main>
             <div class="bg-dark-secondary p-6 rounded-xl shadow-2xl">
-                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-warning mb-4">Documentos Pendentes de Avaliação</h3>
+                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-accent mb-4">
+                    Documentos Pendentes de Validação
+                </h3>
                 
-                <div class="overflow-x-auto rounded-lg shadow-lg border border-gray-700">
-                    <table class="min-w-full divide-y divide-gray-700">
-                        <thead class="bg-dark-primary">
-                            <tr>
-                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-32">TIPO</th>
-                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-40">PROFESSOR</th>
-                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-32">DISCIPLINA</th>
-                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">TEMA PRINCIPAL</th>
-                                <th class="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-24">AÇÃO</th>
-                            </tr>
-                        </thead>
-                        <tbody id="documentos-pendentes-list" class="bg-dark-secondary divide-y divide-gray-700">
-                             </tbody>
-                    </table>
+                <div id="lista-documentos" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Documentos serão carregados aqui -->
                 </div>
             </div>
-
-            <div id="detalhes-documento" class="bg-dark-secondary p-6 rounded-xl shadow-2xl" style="display:none;">
-                <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-info mb-4">Visualização e Validação do Documento</h3>
-                
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 text-sm">
-                    <div class="p-3 bg-dark-primary rounded">
-                        <strong>TIPO:</strong> <span id="detail-tipo" class="font-bold"></span>
-                    </div>
-                     <div class="p-3 bg-dark-primary rounded">
-                        <strong>PROFESSOR:</strong> <span id="detail-professor"></span>
-                    </div>
-                     <div class="p-3 bg-dark-primary rounded">
-                        <strong>DISCIPLINA:</strong> <span id="detail-disciplina"></span>
-                    </div>
-                     <div class="p-3 bg-dark-primary rounded">
-                        <strong>PERÍODO:</strong> <span id="detail-periodo"></span>
-                    </div>
-                    <div class="md:col-span-4 p-3 bg-dark-primary rounded">
-                        <strong>TEMA:</strong> <span id="detail-tema" class="font-semibold"></span>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 text-sm">
-                    <div class="p-3 bg-dark-primary rounded">
-                        <strong>HABILIDADE:</strong> <p id="detail-habilidade" class="mt-1 text-xs text-gray-300"></p>
-                    </div>
-                    <div class="p-3 bg-dark-primary rounded">
-                        <strong>OBJETIVO:</strong> <p id="detail-objetivo" class="mt-1 text-xs text-gray-300"></p>
-                    </div>
-                </div>
-
-                <div class="mb-4 p-3 bg-dark-primary rounded text-sm">
-                    <strong>DESENVOLVIMENTO (METODOLOGIA/RESUMO):</strong> <p id="detail-desenvolvimento" class="mt-1 text-xs text-gray-300"></p>
-                </div>
-                <div class="mb-6 p-3 bg-dark-primary rounded text-sm">
-                    <strong>AVALIAÇÃO/CRITÉRIOS:</strong> <p id="detail-avaliacao" class="mt-1 text-xs text-gray-300"></p>
-                </div>
-
-
-                <h4 class="text-lg font-bold border-b border-gray-700 pb-1 text-warning mb-4 mt-8">Ação da Coordenação</h4>
-                
-                <label for="input-motivo-correcao" class="block text-sm font-medium mb-1">Motivo para Correção (Obrigatório se Rejeitar):</label>
-                <textarea id="input-motivo-correcao" rows="3" placeholder="Descreva os pontos que o professor deve corrigir no documento." class="form-textarea text-base mb-6"></textarea>
-
-                <div class="flex flex-col md:flex-row gap-4">
-                    <button onclick="validarDocumento('APROVAR')"
-                            class="flex-1 bg-accent hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg">
-                        APROVAR DOCUMENTO
-                    </button>
-                    <button onclick="validarDocumento('CORRECAO')"
-                            class="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ease-in-out shadow-lg">
-                        SOLICITAR CORREÇÃO
-                    </button>
-                </div>
-            </div>
-
         </main>
-        
-        <footer class="w-full text-center mt-10 p-4 text-gray-400 text-sm border-t border-gray-800">
-            <p class="mb-1 text-base font-medium">
-                DESENVOLVEDOR: MARCELO CARDES E LUIS FELIPE CARDES
-            </p>
-            <p class="text-xs font-light tracking-wide">
-                LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS
-            </p>
-        </footer>
 
+        <!-- Modal de Detalhes -->
+        <div id="modal-detalhes" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div id="modal-content" class="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <!-- Conteúdo dinâmico -->
+            </div>
+        </div>
     </div>
 
 </body>

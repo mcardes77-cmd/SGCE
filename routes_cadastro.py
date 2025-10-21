@@ -22,11 +22,11 @@ def validate_required_fields(data, required_fields):
 # ROTAS CRUD GENÉRICAS (STAFF, SALAS, DISCIPLINAS, ETC.)
 # =========================================================
 
-# --- Professores/Funcionários (d_professores_funcionarios) ---
+# --- Professores/Funcionários (d_funcionarios) --- CORRIGIDO
 @cadastro_bp.route('/api/funcionarios', methods=['GET', 'POST'])
 @cadastro_bp.route('/api/funcionarios/<item_id>', methods=['DELETE', 'PUT'])
 def api_cadastro_staff(item_id=None):
-    table_name = 'd_professores_funcionarios'
+    table_name = 'd_funcionarios'  # CORRIGIDO: era 'd_professores_funcionarios'
     # 'id' é a matrícula/ID do funcionário
     required_fields_post = ['id', 'nome', 'funcao', 'email', 'celular'] 
     
@@ -66,26 +66,32 @@ def api_cadastro_staff(item_id=None):
 @cadastro_bp.route('/api/cadastrar_funcionario', methods=['POST'])
 def cadastrar_funcionario(): return api_cadastro_staff()
 
-# --- Salas (d_salas) ---
+# --- Salas (d_salas) --- CORRIGIDO
 @cadastro_bp.route('/api/salas', methods=['GET', 'POST'])
 @cadastro_bp.route('/api/salas/<int:sala_id>', methods=['DELETE'])
 def api_cadastro_salas(sala_id=None):
     table_name = 'd_salas'
-    required_fields_post = ['nivel_ensino', 'nome_turma'] # Nome da Turma é o campo de entrada no HTML
     
     try:
         if request.method == 'GET':
-            resp = supabase.table(table_name).select('id, nivel_ensino, nome_turma, nome').order('nome_turma').execute()
+            # CORRIGIDO: usando campo 'sala' ao invés de 'nome_turma'
+            resp = supabase.table(table_name).select('id, nivel_ensino, sala').order('sala').execute()
             return jsonify(handle_supabase_response(resp)), 200
 
         elif request.method == 'POST':
             data = request.json
-            error, valid = validate_required_fields(data, required_fields_post)
-            if not valid: return jsonify({"error": error}), 400
+            # CORRIGIDO: validação com campos corretos
+            if not data.get('nivel_ensino') or not data.get('nome_turma'):
+                return jsonify({"error": "Campos obrigatórios ausentes: nivel_ensino, nome_turma"}), 400
             
-            # Adiciona o campo 'nome' para lookups mais genéricos (Ex: Ensino Médio - 1A)
-            data['nome'] = f"{data['nivel_ensino']} - {data['nome_turma']}"
-            resp = supabase.table(table_name).insert(data).execute()
+            # CORRIGIDO: mapeando nome_turma para sala
+            sala_data = {
+                'nivel_ensino': data['nivel_ensino'],
+                'sala': data['nome_turma'],  # CORRIGIDO: campo correto
+                'nome': f"{data['nivel_ensino']} - {data['nome_turma']}"
+            }
+            
+            resp = supabase.table(table_name).insert(sala_data).execute()
             handle_supabase_response(resp)
             return jsonify({"message": "Sala cadastrada.", "id": resp.data[0]['id']}), 201
         
@@ -102,7 +108,7 @@ def api_cadastro_salas(sala_id=None):
 @cadastro_bp.route('/api/cadastrar_sala', methods=['POST'])
 def cadastrar_sala(): return api_cadastro_salas()
 
-# --- Disciplinas, Eletivas, Clubes, Equipamentos (CRUD Genérico) ---
+# --- Disciplinas, Eletivas, Clubes, Equipamentos (CRUD Genérico) --- CORRIGIDO
 @cadastro_bp.route('/api/<string:entity>', methods=['GET'])
 @cadastro_bp.route('/api/<string:entity>', methods=['POST']) # /api/cadastrar_...
 @cadastro_bp.route('/api/<string:entity>/<item_id>', methods=['DELETE'])
@@ -112,9 +118,9 @@ def api_cadastro_generic_crud(entity, item_id=None):
         'disciplinas': {'table': 'd_disciplinas', 'req': ['nome', 'abreviacao'], 'key': 'abreviacao'}, # Usa abreviacao como ID (String)
         'eletivas': {'table': 'd_eletivas', 'req': ['nome', 'semestre']},
         'clubes': {'table': 'd_clubes', 'req': ['nome', 'semestre']},
-        # Mapeia 'inventario' para 'd_equipamentos'
-        'inventario': {'table': 'd_equipamentos', 'req': ['colmeia', 'id_equipamento']},
-        'equipamentos': {'table': 'd_equipamentos', 'req': ['colmeia', 'id_equipamento']},
+        # CORRIGIDO: mapeando para tabela correta
+        'inventario': {'table': 'd_inventario_equipamentos', 'req': ['colmeia', 'equipamento_id']},
+        'equipamentos': {'table': 'd_inventario_equipamentos', 'req': ['colmeia', 'equipamento_id']},
     }
     
     # Mapeamento para rotas de cadastro específicas do JS
@@ -138,9 +144,13 @@ def api_cadastro_generic_crud(entity, item_id=None):
             error, valid = validate_required_fields(data, config['req'])
             if not valid: return jsonify({"error": error}), 400
             
-            # Adiciona um status inicial para equipamentos
+            # CORRIGIDO: para equipamentos, usar campo correto
             if entity in ['equipamentos', 'inventario']:
                 data['status'] = 'DISPONÍVEL'
+                # Mapear id_equipamento do frontend para equipamento_id do banco
+                if 'id_equipamento' in data:
+                    data['equipamento_id'] = data['id_equipamento']
+                    del data['id_equipamento']
                 
             resp = supabase.table(table_name).insert(data).execute()
             handle_supabase_response(resp)
@@ -179,7 +189,8 @@ for ent in ['disciplinas', 'eletivas', 'clubes', 'inventario', 'equipamentos']:
 def api_get_alunos():
     try:
         # Busca d_alunos com JOINs implícitos (usando Supabase Foreign Key Joins)
-        resp = supabase.table('d_alunos').select('*, sala_id:d_salas(nome_turma), tutor_id:d_professores_funcionarios(nome)').order('nome').execute()
+        # CORRIGIDO: usando campo 'sala' ao invés de 'nome_turma'
+        resp = supabase.table('d_alunos').select('*, sala_id:d_salas(sala), tutor_id:d_funcionarios(nome)').order('nome').execute()
         alunos_raw = handle_supabase_response(resp)
         
         # Formata para o formato esperado pelo gestao_cadastro_aluno.html
@@ -188,7 +199,7 @@ def api_get_alunos():
                 'id': a['id'],
                 'ra': a['ra'],
                 'nome': a['nome'],
-                'sala_nome': a.get('sala_id', {}).get('nome_turma', 'N/A'),
+                'sala_nome': a.get('sala_id', {}).get('sala', 'N/A'),  # CORRIGIDO: campo correto
                 'tutor_nome': a.get('tutor_id', {}).get('nome', 'Não Vinculado')
             } for a in alunos_raw
         ]
@@ -311,14 +322,14 @@ def api_vincular_tutor_aluno():
         return jsonify({"error": str(e)}), 500
 
 
-# --- VINCULAÇÃO DISCIPLINA-SALA ---
+# --- VINCULAÇÃO DISCIPLINA-SALA --- CORRIGIDO
 
 # ROTA: /api/vinculacoes_disciplinas/<int:sala_id> (GET)
 @cadastro_bp.route('/api/vinculacoes_disciplinas/<int:sala_id>', methods=['GET'])
 def api_get_vinculacoes_disciplinas(sala_id):
     try:
-        # Assumimos a tabela t_disciplinas_sala para armazenar os IDs (abreviações) das disciplinas por sala
-        resp = supabase.table('t_disciplinas_sala').select('disciplina_id').eq('sala_id', sala_id).execute()
+        # CORRIGIDO: tabela correta
+        resp = supabase.table('vinculos_disciplina_sala').select('disciplina_id').eq('sala_id', sala_id).execute()
         
         # Retorna apenas o array de IDs (abreviações)
         disciplina_ids = [d['disciplina_id'] for d in handle_supabase_response(resp)]
@@ -339,8 +350,8 @@ def api_vincular_disciplina_sala():
         return jsonify({"error": "ID da sala é obrigatório."}), 400
         
     try:
-        # 1. Exclui todos os vínculos existentes para a sala
-        supabase.table('t_disciplinas_sala').delete().eq('sala_id', int(sala_id)).execute()
+        # CORRIGIDO: tabela correta
+        supabase.table('vinculos_disciplina_sala').delete().eq('sala_id', int(sala_id)).execute()
         
         if not disciplina_ids:
              return jsonify({"message": "Todos os vínculos de disciplina foram removidos com sucesso."}), 200
@@ -351,7 +362,8 @@ def api_vincular_disciplina_sala():
             for disc_id in disciplina_ids
         ]
         
-        resp = supabase.table('t_disciplinas_sala').insert(novos_vinculos).execute()
+        # CORRIGIDO: tabela correta
+        resp = supabase.table('vinculos_disciplina_sala').insert(novos_vinculos).execute()
         handle_supabase_response(resp)
         
         return jsonify({"message": f"{len(novos_vinculos)} disciplina(s) vinculada(s) à sala {sala_id} com sucesso."}), 201

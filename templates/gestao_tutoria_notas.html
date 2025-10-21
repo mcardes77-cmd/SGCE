@@ -5,151 +5,206 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lançamento de Notas</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-const SUPABASE_URL = 'https://SEU_PROJETO.supabase.co';
-const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-let selectedAlunoId = null;
-let selectedBimestre = null;
-
-// ===============================
-// CARREGAR TUTORES
-// ===============================
-async function loadTutores() {
-    const selectTutor = document.getElementById('filter-tutor');
-    selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
-
-    const { data: tutores, error } = await supabase.from('d_tutores').select('id,nome');
-    if (error) { console.error(error); return; }
-
-    tutores.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(tutor=>{
-        const option = document.createElement('option');
-        option.value = tutor.id;
-        option.textContent = tutor.nome;
-        selectTutor.appendChild(option);
-    });
-    loadAlunos();
-}
-
-// ===============================
-// CARREGAR ALUNOS POR TUTOR
-// ===============================
-async function loadAlunos() {
-    const tutorId = document.getElementById('filter-tutor').value;
-    const selectAluno = document.getElementById('filter-aluno');
-    selectedAlunoId = null;
-
-    selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
-    selectAluno.disabled = !tutorId;
-    document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
-    document.getElementById('salvar-notas-button').disabled = true;
-
-    if (!tutorId) return;
-
-    const { data: alunos, error } = await supabase.from('d_alunos').select('id,nome').eq('tutor_id', tutorId);
-    if (error) { console.error(error); return; }
-
-    alunos.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(aluno=>{
-        const option = document.createElement('option');
-        option.value = aluno.id;
-        option.textContent = aluno.nome;
-        selectAluno.appendChild(option);
-    });
-}
-
-// ===============================
-// HABILITAR BIMESTRE AO SELECIONAR ALUNO
-// ===============================
-function enableBimestre() {
-    const alunoId = document.getElementById('filter-aluno').value;
-    selectedAlunoId = alunoId;
-    const selectBimestre = document.getElementById('filter-bimestre');
-    selectBimestre.disabled = !alunoId;
-    document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
-    document.getElementById('salvar-notas-button').disabled = true;
-    if (alunoId && selectBimestre.value) loadGradesTable();
-}
-
-// ===============================
-// CARREGAR TABELA DE NOTAS
-// ===============================
-async function loadGradesTable() {
-    const alunoId = document.getElementById('filter-aluno').value;
-    const selectedBim = document.getElementById('filter-bimestre').value;
-    selectedBimestre = selectedBim;
-    const tableBody = document.getElementById('grades-table-body');
-    tableBody.innerHTML = '';
-    if (!alunoId || !selectedBim) return;
-
-    const bField = `B${selectedBim}`;
-
-    // Buscar notas do aluno no Supabase
-    const { data: notasData, error } = await supabase
-        .from('f_frequencia')
-        .select('notas')
-        .eq('aluno_id', alunoId)
-        .order('data_registro', { ascending: false })
-        .limit(1)
-        .single();
-
-    const disciplinas = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Arte', 'Educação Física', 'Inglês', 'Eletiva', 'Projeto de Vida'];
-    const notas = notasData?.notas || {};
-
-    disciplinas.forEach(disc=>{
-        const grades = notas[disc] || { B1: 0, B2: 0, B3:0, B4:0 };
-        let row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50">
-                    <td class="p-3 font-semibold text-text-light">${disc}</td>`;
-        for (let i=1;i<=4;i++){
-            const field = `B${i}`;
-            const isEditable = field === bField;
-            const value = grades[field]>0 ? grades[field].toFixed(1) : '';
-            row += `<td class="p-2">
-                        <input type="number" step="0.1" min="0" max="10"
-                            id="nota-${disc.replace(/\s/g,'_')}-${field}"
-                            value="${value}"
-                            class="${isEditable?'form-input bg-accent/20':'form-input bg-gray-700 cursor-not-allowed'}"
-                            ${isEditable?'':'disabled'}
-                            data-disciplina="${disc}" data-bimestre="${field}">
-                    </td>`;
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    'dark-primary': '#0F172A',
+                    'dark-secondary': '#1E293B',
+                    'accent': '#10B981',
+                    'text-light': '#F8FAFC',
+                },
+                fontFamily: { sans: ['Inter', 'sans-serif'] },
+            }
         }
-        row += '</tr>';
-        tableBody.insertAdjacentHTML('beforeend', row);
+    }
+
+    let selectedAlunoId = null;
+    let selectedBimestre = null;
+
+    // ===============================
+    // CARREGAR TUTORES
+    // ===============================
+    async function loadTutores() {
+        const selectTutor = document.getElementById('filter-tutor');
+        selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
+
+        try {
+            const response = await fetch('/api/tutores');
+            if (!response.ok) throw new Error('Erro ao carregar tutores');
+            const tutores = await response.json();
+
+            tutores.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(tutor=>{
+                const option = document.createElement('option');
+                option.value = tutor.id;
+                option.textContent = tutor.nome;
+                selectTutor.appendChild(option);
+            });
+            loadAlunos();
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao carregar tutores', 'danger');
+        }
+    }
+
+    // ===============================
+    // CARREGAR ALUNOS POR TUTOR
+    // ===============================
+    async function loadAlunos() {
+        const tutorId = document.getElementById('filter-tutor').value;
+        const selectAluno = document.getElementById('filter-aluno');
+        selectedAlunoId = null;
+
+        selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
+        selectAluno.disabled = !tutorId;
+        document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
+        document.getElementById('salvar-notas-button').disabled = true;
+
+        if (!tutorId) return;
+
+        try {
+            const response = await fetch(`/api/alunos_por_tutor/${tutorId}`);
+            if (!response.ok) throw new Error('Erro ao carregar alunos');
+            const alunos = await response.json();
+
+            alunos.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(aluno=>{
+                const option = document.createElement('option');
+                option.value = aluno.id;
+                option.textContent = aluno.nome;
+                selectAluno.appendChild(option);
+            });
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao carregar alunos', 'danger');
+        }
+    }
+
+    // ===============================
+    // HABILITAR BIMESTRE AO SELECIONAR ALUNO
+    // ===============================
+    function enableBimestre() {
+        const alunoId = document.getElementById('filter-aluno').value;
+        selectedAlunoId = alunoId;
+        const selectBimestre = document.getElementById('filter-bimestre');
+        selectBimestre.disabled = !alunoId;
+        document.getElementById('grades-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Selecione o Aluno e o Bimestre para carregar as notas.</td></tr>';
+        document.getElementById('salvar-notas-button').disabled = true;
+        if (alunoId && selectBimestre.value) loadGradesTable();
+    }
+
+    // ===============================
+    // CARREGAR TABELA DE NOTAS
+    // ===============================
+    async function loadGradesTable() {
+        const alunoId = document.getElementById('filter-aluno').value;
+        const selectedBim = document.getElementById('filter-bimestre').value;
+        selectedBimestre = selectedBim;
+        const tableBody = document.getElementById('grades-table-body');
+        tableBody.innerHTML = '';
+        if (!alunoId || !selectedBim) return;
+
+        const bField = `B${selectedBim}`;
+
+        try {
+            // Buscar notas do aluno via API Flask
+            const response = await fetch(`/api/tutoria/ficha/${alunoId}`);
+            if (!response.ok) throw new Error('Erro ao carregar notas');
+            const fichaData = await response.json();
+
+            const disciplinas = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Arte', 'Educação Física', 'Inglês', 'Eletiva', 'Projeto de Vida'];
+            const notas = fichaData.notas || {};
+
+            disciplinas.forEach(disc=>{
+                const grades = notas[disc] || { B1: 0, B2: 0, B3:0, B4:0 };
+                let row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50">
+                            <td class="p-3 font-semibold text-text-light">${disc}</td>`;
+                for (let i=1;i<=4;i++){
+                    const field = `B${i}`;
+                    const isEditable = field === bField;
+                    const value = grades[field]>0 ? grades[field].toFixed(1) : '';
+                    row += `<td class="p-2">
+                                <input type="number" step="0.1" min="0" max="10"
+                                    id="nota-${disc.replace(/\s/g,'_')}-${field}"
+                                    value="${value}"
+                                    class="w-full p-2 rounded border ${isEditable?'bg-accent/20 border-accent':'bg-gray-700 border-gray-600 cursor-not-allowed'}"
+                                    ${isEditable?'':'disabled'}
+                                    data-disciplina="${disc}" data-bimestre="${field}">
+                            </td>`;
+                }
+                row += '</tr>';
+                tableBody.insertAdjacentHTML('beforeend', row);
+            });
+
+            document.getElementById('salvar-notas-button').disabled = false;
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao carregar notas', 'danger');
+        }
+    }
+
+    // ===============================
+    // SALVAR NOTAS
+    // ===============================
+    async function salvarNotas(e){
+        e.preventDefault();
+        if (!selectedAlunoId || !selectedBimestre) {
+            mostrarMensagem('Selecione aluno e bimestre', 'danger');
+            return;
+        }
+
+        const bField = `B${selectedBimestre}`;
+        const inputs = document.querySelectorAll(`input[data-bimestre="${bField}"]`);
+        const notasToSave = {};
+        
+        inputs.forEach(input=>{
+            const disc = input.dataset.disciplina;
+            let val = parseFloat(input.value);
+            if (isNaN(val)) val = 0;
+            if (!notasToSave[disc]) notasToSave[disc] = { B1:0,B2:0,B3:0,B4:0 };
+            notasToSave[disc][bField] = val;
+        });
+
+        try {
+            const response = await fetch('/api/tutoria/notas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    aluno_id: selectedAlunoId,
+                    notas: notasToSave
+                })
+            });
+
+            if (!response.ok) throw new Error('Erro ao salvar notas');
+            
+            const result = await response.json();
+            mostrarMensagem(result.message, 'success');
+            loadGradesTable();
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao salvar notas', 'danger');
+        }
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const msgElement = document.getElementById('mensagem-status');
+        msgElement.textContent = texto;
+        msgElement.className = `p-3 rounded-lg mb-4 text-white text-center ${
+            tipo === 'success' ? 'bg-accent' : 
+            tipo === 'danger' ? 'bg-red-600' : 'bg-blue-600'
+        }`;
+        msgElement.classList.remove('hidden');
+        
+        setTimeout(() => {
+            msgElement.classList.add('hidden');
+        }, 5000);
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{ 
+        loadTutores(); 
     });
-
-    document.getElementById('salvar-notas-button').disabled = false;
-}
-
-// ===============================
-// SALVAR NOTAS NO SUPABASE
-// ===============================
-async function salvarNotas(e){
-    e.preventDefault();
-    if (!selectedAlunoId || !selectedBimestre) return alert('Selecione aluno e bimestre');
-
-    const bField = `B${selectedBimestre}`;
-    const inputs = document.querySelectorAll(`input[data-bimestre="${bField}"]`);
-    const notasToSave = {};
-    inputs.forEach(input=>{
-        const disc = input.dataset.disciplina;
-        let val = parseFloat(input.value);
-        if (isNaN(val)) val = 0;
-        if (!notasToSave[disc]) notasToSave[disc] = { B1:0,B2:0,B3:0,B4:0 };
-        notasToSave[disc][bField] = val;
-    });
-
-    const { data, error } = await supabase
-        .from('f_frequencia')
-        .upsert([{ aluno_id:selectedAlunoId, notas:notasToSave, updated_at:new Date().toISOString() }], { onConflict:['aluno_id'] });
-
-    if (error) { console.error(error); alert('Erro ao salvar notas'); return; }
-    alert('Notas salvas com sucesso!');
-    loadGradesTable();
-}
-
-document.addEventListener('DOMContentLoaded', ()=>{ loadTutores(); });
 </script>
 <style>
 body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
@@ -171,19 +226,21 @@ body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
 </header>
 
 <main class="w-full max-w-5xl flex-grow">
+<div id="mensagem-status" class="hidden"></div>
+
 <form onsubmit="salvarNotas(event)" class="bg-dark-secondary p-6 rounded-xl shadow-2xl space-y-6">
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 <div>
-<label for="filter-tutor" class="block text-sm font-medium mb-1">Tutor *:</label>
+<label for="filter-tutor" class="block text-sm font-medium mb-1 text-gray-300">Tutor *:</label>
 <select id="filter-tutor" class="form-input" onchange="loadAlunos()" required></select>
 </div>
 <div>
-<label for="filter-aluno" class="block text-sm font-medium mb-1">Aluno *:</label>
+<label for="filter-aluno" class="block text-sm font-medium mb-1 text-gray-300">Aluno *:</label>
 <select id="filter-aluno" class="form-input" onchange="enableBimestre()" disabled required></select>
 </div>
 <div>
-<label for="filter-bimestre" class="block text-sm font-medium mb-1">Bimestre *:</label>
+<label for="filter-bimestre" class="block text-sm font-medium mb-1 text-gray-300">Bimestre *:</label>
 <select id="filter-bimestre" class="form-input" onchange="loadGradesTable()" disabled required>
 <option value="">SELECIONE</option>
 <option value="1">1º Bimestre</option>

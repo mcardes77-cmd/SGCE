@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from calendar import monthrange
 import logging
-from db_utils import supabase, handle_supabase_response # Assumindo db_utils existe
+from db_utils import get_supabase, handle_supabase_response
 
 # Define o Blueprint para as rotas de Frequência
 frequencia_bp = Blueprint('frequencia', __name__)
@@ -21,8 +21,11 @@ def api_frequencia_status():
         return jsonify({"error": "Parâmetros sala_id e data são obrigatórios."}), 400
 
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         # Busca qualquer registro de frequência para a combinação sala/data
-        # Um único registro é suficiente para determinar o status "registrada"
         resp = supabase.table('t_frequencia').select("id").eq('sala_id', int(sala_id)).eq('data', data).limit(1).execute()
         
         registrada = len(resp.data) > 0
@@ -42,6 +45,10 @@ def api_salvar_frequencia():
         return jsonify({"error": "O corpo da requisição deve ser uma lista não vazia de registros."}), 400
         
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         # Assume que todos os registros são para a mesma sala e data (baseado no frontend)
         primeiro_registro = registros[0]
         sala_id = primeiro_registro.get('sala_id')
@@ -98,6 +105,10 @@ def api_salvar_atraso():
         return jsonify({"error": "Dados obrigatórios de aluno, sala, data e hora de atraso ausentes."}), 400
 
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         aluno_id = int(aluno_id)
         sala_id = int(sala_id)
         
@@ -146,7 +157,6 @@ def api_salvar_atraso():
         else:
              supabase.table('t_atrasos_saidas').insert(registro_detalhe).execute()
 
-
         return jsonify({"message": f"Atraso registrado com sucesso. Status atualizado para {novo_status}.", "status": 200}), 200
 
     except Exception as e:
@@ -167,6 +177,10 @@ def api_salvar_saida_antecipada():
         return jsonify({"error": "Dados obrigatórios de aluno, sala, data e hora de saída ausentes."}), 400
 
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         aluno_id = int(aluno_id)
         sala_id = int(sala_id)
         
@@ -215,7 +229,6 @@ def api_salvar_saida_antecipada():
         else:
              supabase.table('t_atrasos_saidas').insert(registro_detalhe).execute()
 
-
         return jsonify({"message": f"Saída antecipada registrada com sucesso. Status atualizado para {novo_status}.", "status": 200}), 200
 
     except Exception as e:
@@ -237,6 +250,10 @@ def api_relatorio_frequencia():
         return jsonify({"error": "Parâmetros sala e mes são obrigatórios."}), 400
 
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         sala_id = int(sala_id)
         mes = int(mes)
         ano_atual = datetime.now().year

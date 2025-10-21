@@ -5,143 +5,196 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agendamento de Tutoria</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-const SUPABASE_URL = 'https://SEU_PROJETO.supabase.co';
-const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-let selectedAlunoId = null;
-
-// ===============================
-// CARREGAR TUTORES
-// ===============================
-async function loadTutores() {
-    const selectTutor = document.getElementById('filter-tutor');
-    selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
-
-    const { data: tutores, error } = await supabase.from('d_tutores').select('id,nome');
-    if (error) { console.error(error); return; }
-
-    tutores.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(tutor=>{
-        const option = document.createElement('option');
-        option.value = tutor.id;
-        option.textContent = tutor.nome;
-        selectTutor.appendChild(option);
-    });
-    loadAlunos();
-}
-
-// ===============================
-// CARREGAR ALUNOS POR TUTOR
-// ===============================
-async function loadAlunos() {
-    const tutorId = document.getElementById('filter-tutor').value;
-    const selectAluno = document.getElementById('filter-aluno');
-    selectedAlunoId = null;
-
-    selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
-    selectAluno.disabled = !tutorId;
-
-    if (!tutorId) return;
-
-    const { data: alunos, error } = await supabase.from('d_alunos').select('id,nome').eq('tutor_id', tutorId);
-    if (error) { console.error(error); return; }
-
-    alunos.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(aluno=>{
-        const option = document.createElement('option');
-        option.value = aluno.id;
-        option.textContent = aluno.nome;
-        selectAluno.appendChild(option);
-    });
-}
-
-// ===============================
-// SELEÇÃO DO ALUNO
-// ===============================
-function selectAluno() {
-    const alunoId = document.getElementById('filter-aluno').value;
-    selectedAlunoId = alunoId;
-    loadHistorico();
-}
-
-// ===============================
-// CARREGAR HISTÓRICO DE AGENDAMENTOS
-// ===============================
-async function loadHistorico() {
-    const tableBody = document.getElementById('historico-body');
-    tableBody.innerHTML = '';
-    if (!selectedAlunoId) return;
-
-    const { data: agendamentos, error } = await supabase
-        .from('f_frequencia')
-        .select('*')
-        .eq('aluno_id', selectedAlunoId)
-        .order('data_registro', { ascending: true });
-
-    if (error) { console.error(error); return; }
-    if (!agendamentos || agendamentos.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Nenhum agendamento encontrado.</td></tr>';
-        return;
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    'dark-primary': '#0F172A',
+                    'dark-secondary': '#1E293B',
+                    'accent': '#10B981',
+                    'text-light': '#F8FAFC',
+                },
+                fontFamily: { sans: ['Inter', 'sans-serif'] },
+            }
+        }
     }
 
-    agendamentos.forEach((ag, index)=>{
-        const row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50 cursor-pointer" onclick="openAgendamento(${index})">
-                        <td class="p-2 text-center">${ag.data_registro?.slice(0,10) || ''}</td>
-                        <td class="p-2 text-center">${ag.tipo_atendimento || ''}</td>
-                        <td class="p-2 text-left">${ag.descricao_atendimento || ''}</td>
-                        <td class="p-2 text-center">${ag.status_agendamento || ''}</td>
-                    </tr>`;
-        tableBody.insertAdjacentHTML('beforeend', row);
+    let selectedAlunoId = null;
+    let agendamentosLoaded = [];
+
+    // ===============================
+    // CARREGAR TUTORES
+    // ===============================
+    async function loadTutores() {
+        const selectTutor = document.getElementById('filter-tutor');
+        selectTutor.innerHTML = '<option value="">SELECIONE O TUTOR</option>';
+
+        try {
+            const response = await fetch('/api/tutores');
+            if (!response.ok) throw new Error('Erro ao carregar tutores');
+            const tutores = await response.json();
+
+            tutores.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(tutor=>{
+                const option = document.createElement('option');
+                option.value = tutor.id;
+                option.textContent = tutor.nome;
+                selectTutor.appendChild(option);
+            });
+            loadAlunos();
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao carregar tutores', 'danger');
+        }
+    }
+
+    // ===============================
+    // CARREGAR ALUNOS POR TUTOR
+    // ===============================
+    async function loadAlunos() {
+        const tutorId = document.getElementById('filter-tutor').value;
+        const selectAluno = document.getElementById('filter-aluno');
+        selectedAlunoId = null;
+
+        selectAluno.innerHTML = '<option value="">SELECIONE O ALUNO</option>';
+        selectAluno.disabled = !tutorId;
+
+        if (!tutorId) return;
+
+        try {
+            const response = await fetch(`/api/alunos_por_tutor/${tutorId}`);
+            if (!response.ok) throw new Error('Erro ao carregar alunos');
+            const alunos = await response.json();
+
+            alunos.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(aluno=>{
+                const option = document.createElement('option');
+                option.value = aluno.id;
+                option.textContent = aluno.nome;
+                selectAluno.appendChild(option);
+            });
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao carregar alunos', 'danger');
+        }
+    }
+
+    // ===============================
+    // SELEÇÃO DO ALUNO
+    // ===============================
+    function selectAluno() {
+        const alunoId = document.getElementById('filter-aluno').value;
+        selectedAlunoId = alunoId;
+        loadHistorico();
+    }
+
+    // ===============================
+    // CARREGAR HISTÓRICO DE AGENDAMENTOS
+    // ===============================
+    async function loadHistorico() {
+        const tableBody = document.getElementById('historico-body');
+        tableBody.innerHTML = '';
+        if (!selectedAlunoId) return;
+
+        try {
+            // Buscar agendamentos via API Flask
+            const response = await fetch(`/api/tutoria/ficha/${selectedAlunoId}`);
+            if (!response.ok) throw new Error('Erro ao carregar histórico');
+            const fichaData = await response.json();
+
+            const historico = fichaData.historico || [];
+
+            if (!historico || historico.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Nenhum agendamento encontrado.</td></tr>';
+                return;
+            }
+
+            historico.forEach((ag, index)=>{
+                const row = `<tr class="border-b border-gray-700 hover:bg-dark-primary/50 cursor-pointer" onclick="openAgendamento(${index})">
+                                <td class="p-2 text-center">${ag.data_registro?.slice(0,10) || ''}</td>
+                                <td class="p-2 text-center">${ag.tipo_atendimento || ''}</td>
+                                <td class="p-2 text-left">${ag.descricao_atendimento || ''}</td>
+                                <td class="p-2 text-center">${ag.status_agendamento || ''}</td>
+                            </tr>`;
+                tableBody.insertAdjacentHTML('beforeend', row);
+            });
+
+            agendamentosLoaded = historico;
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao carregar histórico', 'danger');
+        }
+    }
+
+    // ===============================
+    // ABRIR AGENDAMENTO
+    // ===============================
+    function openAgendamento(index) {
+        const ag = agendamentosLoaded[index];
+        if (!ag) return;
+
+        document.getElementById('tipo-atendimento').value = ag.tipo_atendimento || '';
+        document.getElementById('descricao-atendimento').value = ag.descricao_atendimento || '';
+        document.getElementById('status-agendamento').value = ag.status_agendamento || 'pendente';
+    }
+
+    // ===============================
+    // SALVAR NOVO AGENDAMENTO
+    // ===============================
+    async function salvarAgendamento(e){
+        e.preventDefault();
+        if (!selectedAlunoId) {
+            mostrarMensagem('Selecione um aluno!', 'danger');
+            return;
+        }
+
+        const tipo = document.getElementById('tipo-atendimento').value;
+        const descricao = document.getElementById('descricao-atendimento').value;
+        const tutorId = document.getElementById('filter-tutor').value;
+
+        try {
+            const response = await fetch('/api/tutoria/agendamento', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    aluno_id: selectedAlunoId,
+                    tutor_id: tutorId,
+                    tipo_atendimento: tipo,
+                    descricao_atendimento: descricao,
+                    status_agendamento: 'pendente'
+                })
+            });
+
+            if (!response.ok) throw new Error('Erro ao salvar agendamento');
+            
+            const result = await response.json();
+            mostrarMensagem(result.message, 'success');
+            document.getElementById('descricao-atendimento').value = '';
+            loadHistorico();
+        } catch (error) {
+            console.error(error);
+            mostrarMensagem('Erro ao salvar agendamento', 'danger');
+        }
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const msgElement = document.getElementById('mensagem-status');
+        msgElement.textContent = texto;
+        msgElement.className = `p-3 rounded-lg mb-4 text-white text-center ${
+            tipo === 'success' ? 'bg-accent' : 
+            tipo === 'danger' ? 'bg-red-600' : 'bg-blue-600'
+        }`;
+        msgElement.classList.remove('hidden');
+        
+        setTimeout(() => {
+            msgElement.classList.add('hidden');
+        }, 5000);
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+        loadTutores();
     });
-
-    window.agendamentosLoaded = agendamentos; // Armazena globalmente para edição
-}
-
-// ===============================
-// ABRIR AGENDAMENTO
-// ===============================
-function openAgendamento(index) {
-    const ag = window.agendamentosLoaded[index];
-    if (!ag) return;
-
-    document.getElementById('tipo-atendimento').value = ag.tipo_atendimento || '';
-    document.getElementById('descricao-atendimento').value = ag.descricao_atendimento || '';
-    document.getElementById('status-agendamento').value = ag.status_agendamento || 'pendente';
-}
-
-// ===============================
-// SALVAR NOVO AGENDAMENTO
-// ===============================
-async function salvarAgendamento(e){
-    e.preventDefault();
-    if (!selectedAlunoId) return alert('Selecione um aluno!');
-
-    const tipo = document.getElementById('tipo-atendimento').value;
-    const descricao = document.getElementById('descricao-atendimento').value;
-    const status = 'pendente';
-    const tutorId = document.getElementById('filter-tutor').value;
-
-    const { data, error } = await supabase.from('f_frequencia')
-        .insert([{
-            aluno_id: selectedAlunoId,
-            tutor_id: tutorId,
-            data_registro: new Date().toISOString(),
-            tipo_atendimento: tipo,
-            descricao_atendimento: descricao,
-            status_agendamento: status
-        }]);
-
-    if (error) { console.error(error); alert('Erro ao salvar agendamento'); return; }
-    alert('Agendamento salvo com sucesso!');
-    document.getElementById('descricao-atendimento').value = '';
-    loadHistorico();
-}
-
-document.addEventListener('DOMContentLoaded', ()=>{
-    loadTutores();
-});
 </script>
 <style>
 body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
@@ -150,6 +203,8 @@ body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
 </head>
 <body class="bg-dark-primary">
 <div class="flex flex-col items-center min-h-screen p-4 md:p-8">
+
+<div id="mensagem-status" class="hidden fixed top-4 right-4 z-50"></div>
 
 <header class="w-full text-center mb-8">
 <h1 class="text-3xl sm:text-4xl font-extrabold text-accent leading-tight tracking-wider">GESTÃO DE TUTORIA</h1>
@@ -168,11 +223,11 @@ body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
 <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400">1. Filtros</h3>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 <div>
-<label for="filter-tutor" class="block text-sm font-medium mb-1">Tutor:</label>
+<label for="filter-tutor" class="block text-sm font-medium mb-1 text-gray-300">Tutor:</label>
 <select id="filter-tutor" class="form-input" onchange="loadAlunos()"></select>
 </div>
 <div>
-<label for="filter-aluno" class="block text-sm font-medium mb-1">Aluno:</label>
+<label for="filter-aluno" class="block text-sm font-medium mb-1 text-gray-300">Aluno:</label>
 <select id="filter-aluno" class="form-input" onchange="selectAluno()" disabled></select>
 </div>
 </div>
@@ -197,7 +252,7 @@ body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
 <h3 class="text-xl font-bold border-b border-gray-600 pb-2 text-indigo-400 pt-4">3. Novo Atendimento</h3>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 <div>
-<label for="tipo-atendimento" class="block text-sm font-medium mb-1">Tipo de Atendimento:</label>
+<label for="tipo-atendimento" class="block text-sm font-medium mb-1 text-gray-300">Tipo de Atendimento:</label>
 <select id="tipo-atendimento" class="form-input" required>
 <option value="">Selecione</option>
 <option value="Acadêmico">Acadêmico</option>
@@ -206,12 +261,12 @@ body{background-color:#0F172A;color:#F8FAFC;font-family:'Inter',sans-serif;}
 </select>
 </div>
 <div>
-<label for="status-agendamento" class="block text-sm font-medium mb-1">Status:</label>
+<label for="status-agendamento" class="block text-sm font-medium mb-1 text-gray-300">Status:</label>
 <input id="status-agendamento" type="text" class="form-input" disabled value="pendente">
 </div>
 </div>
 <div>
-<label for="descricao-atendimento" class="block text-sm font-medium mb-1">Descrição do Atendimento:</label>
+<label for="descricao-atendimento" class="block text-sm font-medium mb-1 text-gray-300">Descrição do Atendimento:</label>
 <textarea id="descricao-atendimento" rows="4" class="form-input" required></textarea>
 </div>
 

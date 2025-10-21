@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
-from db_utils import supabase, handle_supabase_response # Assumindo db_utils existe
+from db_utils import get_supabase, handle_supabase_response
 
 # Define o Blueprint para as rotas de Tutoria
 tutoria_bp = Blueprint('tutoria', __name__)
@@ -11,11 +11,13 @@ tutoria_bp = Blueprint('tutoria', __name__)
 # =========================================================
 
 # ROTA: /api/tutores (Busca todos os professores que são tutores)
-# Nota: Esta rota é implícita nas rotas de front-end que usam `d_tutores`. 
-# Criamos para consistência com o padrão de API.
 @tutoria_bp.route('/api/tutores', methods=['GET'])
 def api_get_tutores():
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         # Busca no Dicionário de Tutores (d_tutores)
         resp = supabase.table('d_tutores').select('id, nome').order('nome').execute()
         tutores = handle_supabase_response(resp)
@@ -28,6 +30,10 @@ def api_get_tutores():
 @tutoria_bp.route('/api/alunos_por_tutor/<int:tutor_id>', methods=['GET'])
 def api_alunos_por_tutor(tutor_id):
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         # Busca alunos no Dicionário de Alunos (d_alunos)
         resp = supabase.table('d_alunos').select('id, nome, sala_id').eq('tutor_id', tutor_id).order('nome').execute()
         alunos = handle_supabase_response(resp)
@@ -41,13 +47,14 @@ def api_alunos_por_tutor(tutor_id):
 # =========================================================
 
 # ROTA: /api/tutoria/ficha/<int:aluno_id> (Ficha Completa)
-# Esta rota deve replicar a lógica de busca do JS, que usa 'tutoria_geral'. 
-# Assumimos que 'tutoria_geral' é uma View ou uma Tabela que consolida os dados.
 @tutoria_bp.route('/api/tutoria/ficha/<int:aluno_id>', methods=['GET'])
 def api_ficha_tutoria(aluno_id):
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         # Busca a ficha consolidada (Frequência, Notas, Histórico)
-        # O front-end sugeriu uma tabela/view chamada 'tutoria_geral'
         resp = supabase.table('tutoria_geral').select('*').eq('aluno_id', aluno_id).single().execute()
         
         # Como é single, precisamos tratar a falta de dados
@@ -65,13 +72,11 @@ def api_ficha_tutoria(aluno_id):
         logging.exception("Erro /api/tutoria/ficha")
         return jsonify({"error": f"Falha ao buscar ficha: {e}"}), 500
 
-
 # =========================================================
 # ROTAS DE REGISTRO E LANÇAMENTO
 # =========================================================
 
 # ROTA: /api/tutoria/agendamento (Salva/Atualiza Registro de Atendimento/Agendamento)
-# Baseado na lógica do `gestao_tutoria_agendamento.html`
 @tutoria_bp.route('/api/tutoria/agendamento', methods=['POST'])
 def api_salvar_agendamento():
     data = request.json
@@ -85,6 +90,10 @@ def api_salvar_agendamento():
         return jsonify({"error": "Dados obrigatórios (aluno, tutor, tipo, descrição) ausentes."}), 400
 
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         registro = {
             "aluno_id": int(aluno_id),
             "tutor_id": int(tutor_id),
@@ -105,7 +114,6 @@ def api_salvar_agendamento():
         return jsonify({"error": f"Falha ao salvar agendamento: {e}"}), 500
 
 # ROTA: /api/tutoria/notas (Upsert/Salva Notas Bimestrais)
-# Baseado na lógica do `gestao_tutoria_notas.html`
 @tutoria_bp.route('/api/tutoria/notas', methods=['POST'])
 def api_salvar_notas():
     data = request.json
@@ -116,22 +124,20 @@ def api_salvar_notas():
         return jsonify({"error": "IDs de aluno e notas são obrigatórios."}), 400
 
     try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Serviço de banco de dados indisponível"}), 503
+
         aluno_id = int(aluno_id)
         
         # 1. Busca as notas existentes (para mergear os bimestres não alterados)
-        # O front-end usa 'f_frequencia' para notas. Assumiremos uma tabela de Notas
         resp_antiga = supabase.table('f_tutoria_notas').select('id, notas').eq('aluno_id', aluno_id).single().execute()
         
         notas_antigas = handle_supabase_response(resp_antiga)
         notas_existentes = notas_antigas.get('notas', {}) if notas_antigas else {}
         registro_id = notas_antigas.get('id') if notas_antigas else None
 
-        # 2. Merge de Notas (Atualiza apenas o bimestre e as disciplinas alteradas)
-        # É necessário mergear a estrutura: disciplina: {B1: x, B2: y, B3: z, B4: w}
-        # O payload do front-end já parece enviar a nota de um bimestre para todas as disciplinas.
-        
-        # 3. Executa o UPSERT
-        # Supabase `upsert` é ideal aqui
+        # 2. Executa o UPSERT
         novo_registro = {
             "aluno_id": aluno_id,
             "notas": notas, # O front-end deve enviar o objeto de notas completo/mergeado
@@ -140,7 +146,6 @@ def api_salvar_notas():
         
         # Se for um UPDATE (registro_id existe)
         if registro_id:
-             # Nota: O front-end faria o merge localmente. Aqui, apenas atualizamos o campo 'notas'
              response = supabase.table('f_tutoria_notas').update(novo_registro).eq('id', registro_id).execute()
         else:
              # Se for um INSERT (registro_id não existe)
