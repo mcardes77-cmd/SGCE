@@ -3,6 +3,7 @@ from flask import Flask, render_template, Blueprint, jsonify
 import os
 import logging
 from db_utils import supabase, handle_supabase_response
+from datetime import datetime, timedelta
 
 # Configuração
 app = Flask(__name__)
@@ -597,5 +598,6 @@ def api_get_status_ocorrencia():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
 
