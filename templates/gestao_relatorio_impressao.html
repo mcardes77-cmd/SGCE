@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filter-sala').addEventListener('change', carregarAlunos);
 });
 
-// Helper para mostrar mensagens (usando a função existente no gestao_frequencia_saida.html)
+// Helper para mostrar mensagens
 function mostrarMsg(msg, tipo = 'info') {
     const el = document.getElementById('global-message');
     if (!el) return;
@@ -50,17 +50,14 @@ function mostrarMsg(msg, tipo = 'info') {
     setTimeout(() => el.style.display = 'none', 5000);
 }
 
-
 async function carregarSalas() {
   const sel = document.getElementById('filter-sala');
   sel.innerHTML = '<option>Carregando...</option>';
   try {
-    // API usada: /api/salas_com_ocorrencias
     const resp = await fetch('/api/salas_com_ocorrencias');
     salas = await resp.json();
     sel.innerHTML = '<option value="">Selecione a Sala</option>';
     salas.forEach(s => {
-      // CORREÇÃO: Usando a chave 'sala' retornada pela API e 'id'
       const nomeSala = s.sala || s.nome || 'Sem nome';
       const idSala = s.id || s.id_sala || s.numero || '';
       sel.innerHTML += `<option value="${idSala}">${nomeSala}</option>`;
@@ -84,12 +81,10 @@ async function carregarAlunos() {
     return;
   }
   try {
-    // API usada: /api/alunos_com_ocorrencias_por_sala/{sala}
     const resp = await fetch(`/api/alunos_com_ocorrencias_por_sala/${sala}`);
     alunos = await resp.json();
     sel.innerHTML = '<option value="">Selecione o Aluno</option>';
     alunos.forEach(a => {
-      // CORREÇÃO: Usando a chave 'nome' retornada pela API e 'id'
       const nomeAluno = a.nome || a.aluno_nome || 'Sem nome';
       const idAluno = a.id || a.id_aluno || a.matricula || '';
       sel.innerHTML += `<option value="${idAluno}">${nomeAluno}</option>`;
@@ -113,7 +108,6 @@ async function buscarOcorrencias() {
   mostrarMsg('Buscando ocorrências...', 'secondary-accent');
   
   try {
-      // Rota nova necessária no backend: /api/ocorrencias_por_aluno/{aluno}
       const resp = await fetch(`/api/ocorrencias_por_aluno/${aluno}`);
       ocorrencias = await resp.json();
       
@@ -140,12 +134,21 @@ function renderizarOcorrencias() {
     div.innerHTML = '<p class="text-gray-400 text-center">Nenhuma ocorrência encontrada.</p>';
     return;
   }
+  
   div.innerHTML = ocorrencias.map(o => `
-    <div class="flex items-start gap-3 border-b border-gray-700 py-3">
-      <input type="checkbox" value="${o.numero}" class="mt-1 h-4 w-4 accent-accent">
+    <div class="flex items-start gap-3 border-b border-gray-700 py-3 ${o.impressao_pdf === 'SIM' ? 'bg-gray-800' : ''}">
+      <input type="checkbox" 
+             value="${o.numero}" 
+             class="mt-1 h-4 w-4 accent-accent"
+             ${o.impressao_pdf === 'SIM' ? 'disabled' : ''}
+             ${o.impressao_pdf === 'SIM' ? 'checked' : ''}>
       <div class="flex-1">
-        <p class="font-bold text-lg text-accent-light">Nº ${o.numero} - ${o.status}</p>
+        <p class="font-bold text-lg text-accent-light">
+          Nº ${o.numero} - ${o.status}
+          ${o.impressao_pdf === 'SIM' ? '<span class="text-xs bg-green-600 text-white px-2 py-1 rounded ml-2">IMPRESSO</span>' : ''}
+        </p>
         <p class="text-sm text-gray-400"><strong>Data:</strong> ${new Date(o.data_hora).toLocaleString('pt-BR')}</p>
+        <p class="text-sm text-gray-400"><strong>Tipo:</strong> ${o.tipo}</p>
         <p class="mt-1"><strong>Descrição:</strong> ${o.descricao}</p>
       </div>
     </div>
@@ -153,7 +156,7 @@ function renderizarOcorrencias() {
 }
 
 async function gerarPDF() {
-  const selecionadas = [...document.querySelectorAll('#ocorrencias-lista input:checked')].map(c => c.value);
+  const selecionadas = [...document.querySelectorAll('#ocorrencias-lista input:checked:not(:disabled)')].map(c => c.value);
   if (!selecionadas.length) {
     mostrarMsg('Selecione pelo menos uma ocorrência para gerar o PDF.', 'danger');
     return;
@@ -161,7 +164,6 @@ async function gerarPDF() {
   
   mostrarMsg('Gerando PDF...', 'secondary-accent');
 
-  // Nota: A rota /api/gerar_pdf_ocorrencias precisa ser implementada no backend.
   try {
       const resp = await fetch('/api/gerar_pdf_ocorrencias', {
         method: 'POST',
@@ -186,8 +188,12 @@ async function gerarPDF() {
       a.remove();
       URL.revokeObjectURL(url);
       
-      mostrarMsg('PDF gerado e download iniciado!', 'accent');
-      document.querySelectorAll('#ocorrencias-lista input:checked').forEach(chk => chk.disabled = true);
+      mostrarMsg('PDF gerado e download iniciado! As ocorrências foram marcadas como impressas.', 'accent');
+      
+      // Recarrega as ocorrências para atualizar o status
+      setTimeout(() => {
+          buscarOcorrencias();
+      }, 1000);
       
   } catch (e) {
       console.error('Erro ao gerar PDF:', e);
@@ -208,7 +214,7 @@ async function gerarPDF() {
       GESTÃO DE RELATÓRIOS - IMPRESSÃO DE OCORRÊNCIAS
     </h2>
 
-    <button onclick="window.location.href='{{ url_for('main.gestao_ocorrencia') }}'" 
+    <button onclick="window.location.href='/gestao_ocorrencia'" 
       class="mt-4 px-4 py-2 text-sm font-medium rounded-lg text-gray-300 border border-gray-600 hover:bg-gray-700 transition duration-150 flex items-center mx-auto">
       <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>
@@ -243,8 +249,11 @@ async function gerarPDF() {
       </div>
       <button onclick="gerarPDF()" 
         class="mt-6 bg-accent px-4 py-3 rounded-lg text-white font-bold w-full hover:bg-emerald-700">
-        Gerar PDF
+        Gerar PDF das Ocorrências Selecionadas
       </button>
+      <p class="text-sm text-gray-400 mt-2">
+        <strong>Nota:</strong> As ocorrências já impressas aparecem em cinza e não podem ser selecionadas novamente.
+      </p>
     </section>
   </main>
 
@@ -253,7 +262,7 @@ async function gerarPDF() {
       DESENVOLVEDOR: MARCELO ANDRÉ NOGUEIRA CARDES
     </p>
     <p class="text-xs font-light tracking-wide">
-      LICENCIADO COMO TESTE PARA E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
+      LICENCIADO: E.E. PEI PROFESSORA IRENE DIAS RIBEIRO
     </p>
   </footer>
 </body>
