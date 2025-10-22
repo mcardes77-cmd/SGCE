@@ -198,7 +198,7 @@
         mostrarMensagem('Registrando ocorrência...', 'warning');
 
         try {
-            const response = await fetch('/api/registrar_ocorrencia', {
+            const response = await fetch('/api/ocorrencias', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(rawData),
@@ -367,5 +367,6 @@
     </div>
 
 </body>
+
 
 </html>
